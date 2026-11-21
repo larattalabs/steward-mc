@@ -36,12 +36,7 @@ public final class Proposals {
 
 	public static void init() {
 		// settlement ids repeat across worlds: back-offs are one world's
-		net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STOPPED.register(s -> {
-			BACKOFF.clear();
-			FULL.clear();
-			CHOOSING.clear();
-			NO_SIDE.clear();
-		});
+		net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STOPPED.register(s -> stopped());
 		ServerTickEvents.END_SERVER_TICK.register(server -> {
 			if (server.getTickCount() % EVERY != 0) return;
 			for (ServerPlayer p : server.getPlayerList().getPlayers()) {
@@ -99,11 +94,9 @@ public final class Proposals {
 			// a waiting part of the plan is not a building: it takes none of the room new proposals have
 			// the catalog's modules first (docs/MODULES.md 4.1): offered only where they can grow a region, the town or (slice DG) a growable district
 			var modules = ModuleOffers.candidates(server, p, s, where.district(), now);
-			fresh = ProposalRules.propose(signs(server, p, s), types(s), new HashSet<>(s.proposals().declined()), open.stream().filter(x -> !x.offersPart()).toList(),
+			fresh = fresh(signs(server, p, s), types(s), new HashSet<>(s.proposals().declined()), open.stream().filter(x -> !x.offersPart()).toList(),
 				s.proposals().lastAt(), now, modules).stream()
 				.map(x -> x.in(where.district())).toList();
-			// (slice MODULE-TYPE, GPT review P2) a rule whose type a catalog module took is never offered as an ordinary building
-			fresh = withoutPlain(fresh, ModuleOffers.moduleTypes());
 		}
 		if (fresh.isEmpty()) {
 			// nothing the signs ask for: the buildings the card left out, in a district of their own (slice DP; offered once)
@@ -132,10 +125,34 @@ public final class Proposals {
 	}
 
 	/** (slice MODULE-TYPE) Settlements told this session that the card's left-out buildings are all modules' types. */
-	private static final Set<String> SAID_MODULES_LEFT = new HashSet<>();
+	static final Set<String> SAID_MODULES_LEFT = new HashSet<>();
+
+	/**
+	 * The world stopped: what was one world's is forgotten (settlement ids repeat across worlds). (slice MODULE-TYPE-2, the final GPT pass's P2) so is
+	 * which settlements were told their left-out buildings are all modules: the next world's settlement of the same id is told again.
+	 */
+	static void stopped() {
+		BACKOFF.clear();
+		FULL.clear();
+		CHOOSING.clear();
+		NO_SIDE.clear();
+		SAID_MODULES_LEFT.clear();
+	}
 
 	private static String capital(String t) {
 		return t.isEmpty() ? t : Character.toUpperCase(t.charAt(0)) + t.substring(1);
+	}
+
+	/**
+	 * The rules' and modules' next proposal ({@link ProposalRules#propose}), over every module's type the live catalog lists ({@link ModuleOffers#moduleTypes}):
+	 * (slice MODULE-TYPE-2, the final GPT pass's P2) a rule whose type a catalog module took is skipped while the rule is chosen, so the next rule
+	 * that fires is offered (a filter after the first match starved them); and (slice MODULE-TYPE) whatever is chosen is never an ordinary proposal of a
+	 * module's type.
+	 */
+	static List<Proposal> fresh(ProposalRules.Signs signs, Set<String> standing, Set<String> declined, List<Proposal> open, long lastAt, long now,
+		List<ProposalRules.ModuleCandidate> modules) {
+		var types = ModuleOffers.moduleTypes();
+		return withoutPlain(ProposalRules.propose(signs, standing, declined, open, lastAt, now, modules, types), types);
 	}
 
 	/** (slice MODULE-TYPE) {@code fresh} without any ordinary proposal of a module's type. Pure. */
@@ -501,7 +518,7 @@ public final class Proposals {
 		} catch (RuntimeException e) {
 			// an unreadable plan names nothing
 		}
-		return StreetModules.withoutModules(kept, SettlementRunner.offeredLotTypes(), s.card(), ProposalRules.leftOutEntries(s.card(), byRole, byType));
+		return StreetModules.withoutModules(kept, ModuleOffers.moduleTypes(), s.card(), ProposalRules.leftOutEntries(s.card(), byRole, byType));
 	}
 
 	/** Proposes the district for the left-out buildings now (dev: the e2e check, past the cooldown). Returns what it did. */
@@ -671,12 +688,12 @@ public final class Proposals {
 	}
 
 	/** (slice PD) A proposal that can't be built any more leaves the inbox, not declined (nothing the player said no to). */
-	static void withdraw(String settlementId, String key) {
+	static boolean withdraw(String settlementId, String key) {
 		var s = Settlements.store().get(settlementId);
-		if (s.isEmpty()) return;
+		if (s.isEmpty()) return false;
 		var ps = s.get().proposals();
-		if (ps.open().stream().noneMatch(x -> x.key().equals(key))) return;
-		Settlements.proposals(settlementId, new Settlement.Proposals(ps.open().stream().filter(x -> !x.key().equals(key)).toList(), ps.declined(), ps.accepted(), ps.lastAt()));
+		if (ps.open().stream().noneMatch(x -> x.key().equals(key))) return true;
+		return Settlements.proposals(settlementId, new Settlement.Proposals(ps.open().stream().filter(x -> !x.key().equals(key)).toList(), ps.declined(), ps.accepted(), ps.lastAt())).ok();
 	}
 
 	/** Declines a proposal: it leaves the inbox and is never made again. */

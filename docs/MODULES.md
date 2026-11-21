@@ -287,6 +287,16 @@ type stands):
 
 **Asked in talk.** "Build me a farm" or "I need somewhere to sort my stuff" goes through the talk job. The job can now name a module (`module:
 crop_farm` and its parameters) in the proposal it puts in the inbox. Its schema takes the module ids from the live catalog.
+- **A module's type is asked of the module** (Noah 2026-11-20, "Never as plain buildings"; slices MODULE-TYPE and MODULE-TYPE-2). A building asked
+  in a module's type (`ModuleTypes`: every kind Steward knows and every catalog id) is read as the module, whatever the model wrote in `module`.
+  The module is looked at **before the town's room** (`Talk.route`): it grows the town's region, so a full street never puts a district before
+  it. Offered when the town qualifies; else the steward says why once ("I won't draw one up for the inbox: a working crop farm comes from the
+  catalog as a module, …"), and nothing of that type is proposed or priced. A decorative stand-in of another type (`farm`) is still its own
+  priced proposal, and only it waits for a district when the street is full.
+- **At Accept** an ordinary proposal of a module's type (an old save's) is refused before anything is surveyed, accepted or spent. It leaves the
+  inbox (not declined) when that withdrawal is saved; if the save fails, the steward says it still shows there and won't be built.
+- **The rules.** A rule whose type is a module's is passed over while the next rule is chosen (`ProposalRules.propose`), so a catalog id equal to
+  a rule's type never starves the later rules; nor is it ever the decorative substitute.
 
 **Autonomous and Full** may build a module offer on their own, within the weekly allowance. A module design costs $0. In survival, Autonomous
 asks first when the **whole growth's bill** takes more than half of the stockpile's count of any item (Q4).
@@ -763,8 +773,8 @@ Architect 0.72.0 (CONTRACT, `kit/schemas/plan.json`, the API). The paid compose,
   - the plan's id, role, label, landmark and placement are kept.
 - **A refused module lot is left out of the plan as built** (removed from its zone's lots before the check), and said: "A working crop
   farm can't be built here: the water would freeze in this biome. It is left out of the town." It is never designed as an ordinary
-  building in its place (that would be a paid design the player didn't approve, 4.1) and never left a pad. **Question for Noah:** left out
-  (the default), or designed as an ordinary building at the build's own design cost?
+  building in its place (that would be a paid design the player didn't approve, 4.1) and never left a pad. **Noah (2026-11-20):** left out
+  ("Leave it out and say why (Recommended)"), the rest builds; a bare lot of a module the catalog doesn't offer is left out the same way (B3 below).
 - **The orders are saved with the build** (`moduleOrders`, BuildStore format 6, lotId -> order) when the checked artifact is kept, beside
   `vPlanId = artifact:<sha>`. No save format changes.
 
@@ -860,8 +870,12 @@ survival quoted again for the new artifact (the cleared key is the artifact and 
     catalog ids. A rule or catalog change under the same card is a new compose. No key is kept byte for byte: the rules changed anyway.
   - **S6, the bible.** The palette check is at `RequestGroup`, and the binding uses the build's own bible pin. From materials, each module's
     bound is set there too, in that bible's blocks, so "no bound" stops the build before the designs are paid for.
-  - **B3, narrowed** (after the review): a bare lot of a module's lot type is a module ask only while the catalog offers that module; a marked
-    lot always is.
+  - **B3, narrowed** (after the review), **replaced 2026-11-20** (Noah: "Leave it out and say why (Recommended)"; slice MODULE-TYPE-2): a
+    bare lot of any module's type (`ModuleTypes`: every kind Steward knows and every catalog id, `ComposedModules.readAll(lots, types)`) is a
+    module ask whether or not the catalog offers it; a marked lot always is. On a first whole build, one the catalog doesn't offer this town is
+    left out before the check, the designs and the quote, said once (`ComposedModules.notOfferedWords`: "… a crop farm comes as a working
+    module from the catalog once the town qualifies …"), and the rest builds; on the street path its card building is left out with the same
+    words. A build saved before this that laid such a lot out as an ordinary lot keeps it (`SettlementRunner.withModules`'s `laidOut`).
   - **S9, a town of modules only.** Nothing is designed: the build goes from the plan to the placement approval and the bind. With no bible,
     the program's own palette dresses them.
   - **S10, capabilities.** Each vocabulary entry says what it `does` (the farm is harvested by the player; `storage_hall@1` doesn't sort). The

@@ -85,7 +85,7 @@ class ModuleTypeTest {
 	@Test
 	void talkLeavesAModuleTypeOutAndSaysWhyRatherThanPricingIt() {
 		String said = Talk.plainLeftOut(b("storage hall", "storage_hall", false), "one stands already", TYPES);
-		assertEquals("A working storage hall can't go here: one stands already. I don't put a storage hall in the inbox as an ordinary building: a working storage hall"
+		assertEquals("A working storage hall can't go here: one stands already. I won't draw one up for the inbox: a working storage hall"
 			+ " comes from the catalog as a module, offered on its own when the town qualifies; I never design one as an ordinary building.", said);
 		assertFalse(said.contains("$"), "nothing is priced");
 		assertNotNull(Talk.plainLeftOut(b("crop farm", "crop_farm", false), null, TYPES));

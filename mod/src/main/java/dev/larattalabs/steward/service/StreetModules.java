@@ -29,17 +29,19 @@ final class StreetModules {
 	record Result(List<LotSpec> specs, List<String> said, int removed) {}
 
 	/**
-	 * The lots without the buildings the plan's module lots stand for, and the words. {@code plan}: the kept plan (null: none); {@code lotTypes}: the
-	 * module lot types offered now ({@link ComposedModules#readAll(List, Set)}); {@code card}: the card {@code specs} were laid out from (null, or no
+	 * The lots without the buildings the plan's module lots stand for, and the words. {@code plan}: the kept plan (null: none); {@code types}: every
+	 * module's type, offered now or not ({@link ComposedModules#readAll(List, Map)}, slice MODULE-TYPE-2); {@code offered}: the module ids the catalog
+	 * offers this town (a bare lot of another is said as {@link ComposedModules#notOfferedWords}); {@code card}: the card {@code specs} were laid out from (null, or no
 	 * program: {@code specs} are all there is); {@code why}: why the plan isn't used, without the module's tail.
 	 * <p>
 	 * (batch-076 review P2-4) Each module lot's building is found in the WHOLE card first, then only a lot laid out for that same card entry is taken
 	 * from {@code specs}: a module whose entry the build count didn't select removes nothing, and an ordinary building that only shares its type stays.
 	 */
-	static Result leaveOut(@Nullable JsonObject plan, Set<String> lotTypes, @Nullable ConceptCard card, List<LotSpec> specs, String why, String laidOut) {
+	static Result leaveOut(@Nullable JsonObject plan, Map<String, String> types, Set<String> offered, @Nullable ConceptCard card, List<LotSpec> specs, String why,
+		String laidOut) {
 		if (plan == null) return new Result(List.copyOf(specs), List.of(), 0);
 		List<JsonObject> lots = PPlan.lots(plan);
-		var asked = ComposedModules.readAll(lots, lotTypes);
+		var asked = ComposedModules.readAll(lots, types);
 		if (asked.isEmpty()) return new Result(List.copyOf(specs), List.of(), 0);
 		Map<String, JsonObject> byId = byId(lots);
 		List<LotSpec> kept = new ArrayList<>(specs);
@@ -67,6 +69,10 @@ final class StreetModules {
 		}
 		List<String> said = new ArrayList<>();
 		for (var a : asked) {
+			if (!ComposedModules.marked(byId.get(a.lotId())) && !offered.contains(a.moduleId())) {
+				said.add(ComposedModules.notOfferedWords(PPlan.role(byId.get(a.lotId())), a.moduleId()));
+				continue;
+			}
 			String kind = ModuleKind.of(a.moduleId()).map(ModuleKind::role).orElse("module");
 			said.add(ComposedModules.leftOutWords(PPlan.role(byId.get(a.lotId())), why + ", so the town is laid out " + laidOut + ", where the working " + kind
 				+ " can't be placed yet"));
@@ -80,11 +86,11 @@ final class StreetModules {
 	 * whole card first (GPT review: never against what is already missing, which could take an unrelated building), then subtracted from that same
 	 * entry's missing count (batch-076 review P2-5: two entries of one role and type stay apart). Pure.
 	 */
-	static List<ConceptCard.Building> withoutModules(@Nullable JsonObject plan, Set<String> lotTypes, @Nullable ConceptCard card, List<ProposalRules.Missing> left) {
+	static List<ConceptCard.Building> withoutModules(@Nullable JsonObject plan, Map<String, String> types, @Nullable ConceptCard card, List<ProposalRules.Missing> left) {
 		List<ConceptCard.Building> all = left.stream().map(ProposalRules.Missing::building).toList();
 		if (plan == null || card == null || !card.hasProgram() || left.isEmpty()) return all;
 		List<JsonObject> lots = PPlan.lots(plan);
-		var asked = ComposedModules.readAll(lots, lotTypes);
+		var asked = ComposedModules.readAll(lots, types);
 		if (asked.isEmpty()) return all;
 		List<ConceptCard.Building> program = card.program();
 		int[] taken = taken(asked, byId(lots), program);

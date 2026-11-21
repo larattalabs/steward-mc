@@ -182,67 +182,95 @@ public final class Talk {
 			if (!Districts.takes(named.get(0))) return named.get(0).name() + " is being built, or stands as its own region and this Architect can't grow it: ask again later.";
 			district = named.get(0).id();
 		}
-		if (district == null) {
-			var counts = Districts.counts(server, s);
-			var where = ProposalRules.where(counts.town(), counts.districts(), Proposals.full(s.id(), now));
-			if (where.full()) {
-				// (slice MODULE-TYPE, GPT review P2) a building asked in a module's type gets no district first: a module grows the town's region,
-				// and isn't an ordinary building waiting for a street; said, nothing proposed
-				String moduleType = dev.larattalabs.steward.module.ModuleTypes.moduleOf(a.building().type(), ModuleOffers.moduleTypes());
-				if (moduleType != null) return plainLeftOut(a.building(), "the town's street is full, and its next buildings go to a district first", ModuleOffers.moduleTypes());
-				// a district first: the one already waiting, else the first way the player has not declined
-				var waiting = s.proposals().open().stream().filter(Proposal::foundsDistrict).findFirst();
-				if (waiting.isPresent()) return "The town's street is full, and " + waiting.get().title().toLowerCase() + " waits in the inbox: found it, then ask me again for the "
-					+ a.building().role() + ".";
-				java.util.Set<String> declined = new HashSet<>();
-				for (String d : DistrictRules.DIRECTIONS) if (s.proposals().declined().contains("district_" + d)) declined.add(d);
-				String way = Districts.firstWay(server, s, declined);
-				if (way == null) return "There is no room left in the town or its districts, and no way left to found another. Expand the claim first.";
-				String added = addProposal(s, Proposal.district(way, "You asked for " + a.building().role() + ", and the town's street is full.", now));
-				if (added != null) return added;
-				return "The town's street is full, so I proposed a district to the " + DistrictRules.directionName(way) + " first. Once it stands, ask me again for the "
-					+ a.building().role() + ".";
-			}
-			district = where.district();
-		}
-		String role = a.building().role();
-		// (docs/MODULES.md 4.1) a working module asked for: offered when it can go here; else the steward says why, and the building asked for is its own
-		// priced proposal (the decorative stand-in), never a silent switch
-		String moduleNo = null;
-		// (slice MODULE-TYPE; Noah 11-20, "Never as plain buildings") a building asked for in a module's type is asked of the module, whatever the model
-		// wrote in module: offered when the town qualifies, else left out and said, never a designed building of that type
+		// (slice MODULE-TYPE-2, the final GPT pass's P2) a working module asked for is looked at before the town's room: a module grows the town's
+		// region and needs no street, so a full town never puts a district first for it; only an ordinary building (or the decorative stand-in of a
+		// module that can't go here) waits for one
 		var types = ModuleOffers.moduleTypes();
 		var module = moduleAsked(a, types);
-		if (module != null) {
-			var kind = dev.larattalabs.steward.module.ModuleKind.of(module.id());
-			var v = kind.isEmpty() ? null : ModuleOffers.verdict(kind.get().id());
-			if (kind.isEmpty() || ModuleOffers.kinds().stream().noneMatch(k -> k.id().equals(kind.get().id()))) moduleNo = "there is no working " + module.id().replace('_', ' ') + " in the catalog";
-			else if (s.proposals().open().stream().anyMatch(x -> x.module() != null && x.module().moduleId().equals(kind.get().id())))
-				return "A working " + kind.get().role() + " waits in the inbox already.";
-			else if (ModuleOffers.standing(server, s, kind.get().id())) moduleNo = "one stands already";
-			else {
-				var player = server.getPlayerList().getPlayers().stream().filter(x -> Settlements.at(x.level(), x.blockPosition()).map(h -> h.id().equals(s.id())).orElse(false))
-					.findFirst().orElse(null);
-				var town = ModuleOffers.town(server, s, player, district);
-				var d = dev.larattalabs.steward.module.ModuleOffer.decide(kind.get(), v, town, module.params(), ModuleOffers.bounds(s));
-				var lamp = d.ok() ? ModuleOffers.lamp(s, v.entry()) : null;
-				if (d.ok() && lamp.refused() == null) {
-					Proposal m = ModuleOffers.proposal(kind.get(), d, s, town.path().materials(), lamp.fallback(),
-						"asked_" + Long.toString(now, 36) + "_" + kind.get().lotType(), "asked", now).in(district);
-					String added = addProposal(s, m);
-					return added != null ? added : a.reply() + " (A working " + kind.get().role() + " from the catalog: no design, $0. See the inbox.)";
+		ProposalRules.Where where = null;
+		if (district == null) {
+			var counts = Districts.counts(server, s);
+			where = ProposalRules.where(counts.town(), counts.districts(), Proposals.full(s.id(), now));
+		}
+		String role = a.building().role();
+		String moduleNo = null;
+		for (Route step : route(module != null, where != null && where.full())) {
+			switch (step) {
+				case MODULE -> {
+					// (docs/MODULES.md 4.1) a working module asked for: offered when it can go here; else the steward says why, and the building asked for is
+					// its own priced proposal (the decorative stand-in), never a silent switch. (slice MODULE-TYPE; Noah 11-20, "Never as plain buildings")
+					// a building asked for in a module's type is asked of the module, whatever the model wrote in module. A full town's module grows the town.
+					String in = district != null ? district : where != null && !where.full() ? where.district() : null;
+					var kind = dev.larattalabs.steward.module.ModuleKind.of(module.id());
+					var v = kind.isEmpty() ? null : ModuleOffers.verdict(kind.get().id());
+					if (kind.isEmpty() || ModuleOffers.kinds().stream().noneMatch(k -> k.id().equals(kind.get().id()))) moduleNo = "there is no working " + module.id().replace('_', ' ') + " in the catalog";
+					else if (s.proposals().open().stream().anyMatch(x -> x.module() != null && x.module().moduleId().equals(kind.get().id())))
+						return "A working " + kind.get().role() + " waits in the inbox already.";
+					else if (ModuleOffers.standing(server, s, kind.get().id())) moduleNo = "one stands already";
+					else {
+						var player = server.getPlayerList().getPlayers().stream().filter(x -> Settlements.at(x.level(), x.blockPosition()).map(h -> h.id().equals(s.id())).orElse(false))
+							.findFirst().orElse(null);
+						var town = ModuleOffers.town(server, s, player, in);
+						var d = dev.larattalabs.steward.module.ModuleOffer.decide(kind.get(), v, town, module.params(), ModuleOffers.bounds(s));
+						var lamp = d.ok() ? ModuleOffers.lamp(s, v.entry()) : null;
+						if (d.ok() && lamp.refused() == null) {
+							Proposal m = ModuleOffers.proposal(kind.get(), d, s, town.path().materials(), lamp.fallback(),
+								"asked_" + Long.toString(now, 36) + "_" + kind.get().lotType(), "asked", now).in(in);
+							String added = addProposal(s, m);
+							return added != null ? added : a.reply() + " (A working " + kind.get().role() + " from the catalog: no design, $0. See the inbox.)";
+						}
+						moduleNo = d.ok() ? lamp.refused() : d.why();
+					}
+					// the building asked for is of a module's type: no designed stand-in of that type; the steward says why, and nothing is proposed or priced
+					String left = plainLeftOut(a.building(), module.id().equals(dev.larattalabs.steward.module.ModuleTypes.moduleOf(a.building().type(), types)) ? moduleNo : null, types);
+					if (left != null) return left;
 				}
-				moduleNo = d.ok() ? lamp.refused() : d.why();
+				case DISTRICT_FIRST -> {
+					// never an ordinary building of a module's type, even when the model named no module
+					String left = plainLeftOut(a.building(), null, types);
+					if (left != null) return left;
+					String no = moduleNo == null ? "" : "A working " + role + " can't go here: " + moduleNo + ". ";
+					// a district first: the one already waiting, else the first way the player has not declined
+					var waiting = s.proposals().open().stream().filter(Proposal::foundsDistrict).findFirst();
+					if (waiting.isPresent()) return no + "The town's street is full, and " + waiting.get().title().toLowerCase() + " waits in the inbox: found it, then ask me again for the "
+						+ role + ".";
+					java.util.Set<String> declined = new HashSet<>();
+					for (String d : DistrictRules.DIRECTIONS) if (s.proposals().declined().contains("district_" + d)) declined.add(d);
+					String way = Districts.firstWay(server, s, declined);
+					if (way == null) return no + "There is no room left in the town or its districts, and no way left to found another. Expand the claim first.";
+					String added = addProposal(s, Proposal.district(way, "You asked for " + role + ", and the town's street is full.", now));
+					if (added != null) return added;
+					return no + "The town's street is full, so I proposed a district to the " + DistrictRules.directionName(way) + " first. Once it stands, ask me again for the "
+						+ role + ".";
+				}
+				case HERE -> {
+					if (district == null) district = where.district();
+				}
 			}
 		}
-		// the building asked for is of a module's type: no designed stand-in of that type; the steward says why, and nothing is proposed or priced
-		String left = plainLeftOut(a.building(), module != null && module.id().equals(dev.larattalabs.steward.module.ModuleTypes.moduleOf(a.building().type(), types)) ? moduleNo : null, types);
+		// never an ordinary building of a module's type
+		String left = plainLeftOut(a.building(), null, types);
 		if (left != null) return left;
 		Proposal p = new Proposal("asked_" + Long.toString(now, 36) + "_" + a.building().type(), Character.toUpperCase(role.charAt(0)) + role.substring(1),
 			"You asked: \"" + clip(said, 120) + "\"" + (moduleNo == null ? "" : " A working one can't go here (" + moduleNo + "), so this is a decorative " + role
 				+ ", designed: about $" + Proposals.estimate(new Proposal("x", role, "", a.building(), now, "asked")) + "."), a.building(), now, "asked", district, null);
 		String added = addProposal(s, p);
 		return added != null ? added : moduleNo == null ? a.reply() : "A working " + role + " can't go here: " + moduleNo + ". I put a decorative one in the inbox instead, as its own proposal at its own price.";
+	}
+
+	/** (slice MODULE-TYPE-2) The steps of a building ask, in order: the working module first when one is asked, then the town's room. */
+	enum Route { MODULE, DISTRICT_FIRST, HERE }
+
+	/**
+	 * (slice MODULE-TYPE-2, the final GPT pass's P2) The order a building ask is handled in: a working module asked for ({@code module}) is looked at
+	 * before the town's room ({@code full}: its street is full), so a full town never puts a district before a module; the room is for what is left (an
+	 * ordinary building, or the decorative stand-in of a module that can't go here). Pure.
+	 */
+	static List<Route> route(boolean module, boolean full) {
+		List<Route> out = new ArrayList<>();
+		if (module) out.add(Route.MODULE);
+		out.add(full ? Route.DISTRICT_FIRST : Route.HERE);
+		return out;
 	}
 
 	/**
@@ -263,7 +291,8 @@ public final class Talk {
 		String id = dev.larattalabs.steward.module.ModuleTypes.moduleOf(b.type(), types);
 		if (id == null) return null;
 		String role = dev.larattalabs.steward.module.ModuleTypes.role(id);
-		return (moduleNo == null ? "" : "A working " + role + " can't go here: " + moduleNo + ". ") + "I don't put a " + role + " in the inbox as an ordinary building: "
+		// (slice MODULE-TYPE-2) said once: the rule's own words say it is never an ordinary building
+		return (moduleNo == null ? "" : "A working " + role + " can't go here: " + moduleNo + ". ") + "I won't draw one up for the inbox: "
 			+ dev.larattalabs.steward.module.ModuleTypes.rule(id) + ".";
 	}
 

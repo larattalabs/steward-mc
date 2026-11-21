@@ -207,6 +207,45 @@ public final class ComposedModules {
 		return out;
 	}
 
+	/**
+	 * (slice MODULE-TYPE-2; Noah 2026-11-20, "Leave it out and say why") Every module ask of {@code lots}, failing closed over every module's type
+	 * ({@code moduleTypes}: {@link ModuleTypes}, the kinds Steward knows and every catalog id, offered now or not): a lot with a module marker (readable
+	 * or not), or a bare lot whose type (slugged) is a module's. A bare lot of a module the catalog doesn't offer this town is still an ask, refused and
+	 * left out of the first build with its reason ({@link #notOfferedWords}), never an ordinary, designed lot (this replaces B3's narrowing). Pure.
+	 */
+	public static List<Asked> readAll(List<JsonObject> lots, Map<String, String> moduleTypes) {
+		List<Asked> out = new ArrayList<>();
+		for (JsonObject l : lots) {
+			Asked a = asked(l, moduleTypes);
+			if (a != null) out.add(a);
+		}
+		return out;
+	}
+
+	/** As {@link #readAll(List, Map)}, for one lot. */
+	public static @Nullable Asked asked(JsonObject lot, Map<String, String> moduleTypes) {
+		if (!lot.has("id") || !lot.get("id").isJsonPrimitive()) return null;
+		if (marked(lot)) return asked(lot, Set.of());
+		String type = lot.has("type") && lot.get("type").isJsonPrimitive() ? lot.get("type").getAsString() : null;
+		String id = ModuleTypes.moduleOf(type, moduleTypes);
+		return id == null ? null : new Asked(lot.get("id").getAsString(), id, new JsonObject(), null);
+	}
+
+	/** Whether a plan lot carries a module marker at all (readable or not). Pure. */
+	public static boolean marked(@Nullable JsonObject lot) {
+		return lot != null && lot.has("ext") && lot.get("ext").isJsonObject() && lot.getAsJsonObject("ext").has(EXT);
+	}
+
+	/**
+	 * (slice MODULE-TYPE-2) What the steward says, before the first build spends anything, of a bare plan lot of a module's type that the catalog
+	 * doesn't offer this town: it is left out, and the rest of the town builds. Pure.
+	 */
+	public static String notOfferedWords(String name, String moduleId) {
+		String role = ModuleTypes.role(moduleId);
+		return "The plan's " + name + " is left out of this first build: a " + role + " comes as a working module from the catalog once the town qualifies,"
+			+ " and I never design one as an ordinary building. The rest of the town builds.";
+	}
+
 	/** The module a plan lot's marker names when it is readable, or null (no ext, no id, or not a string id). */
 	public static @Nullable Asked asked(JsonObject lot) {
 		if (!lot.has("id") || !lot.get("id").isJsonPrimitive()) return null;
