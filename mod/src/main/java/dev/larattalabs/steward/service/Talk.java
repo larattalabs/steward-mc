@@ -205,10 +205,14 @@ public final class Talk {
 		// (docs/MODULES.md 4.1) a working module asked for: offered when it can go here; else the steward says why, and the building asked for is its own
 		// priced proposal (the decorative stand-in), never a silent switch
 		String moduleNo = null;
-		if (a.module() != null) {
-			var kind = dev.larattalabs.steward.module.ModuleKind.of(a.module().id());
+		// (slice MODULE-TYPE; Noah 11-20, "Never as plain buildings") a building asked for in a module's type is asked of the module, whatever the model
+		// wrote in module: offered when the town qualifies, else left out and said, never a designed building of that type
+		var types = ModuleOffers.moduleTypes();
+		var module = moduleAsked(a, types);
+		if (module != null) {
+			var kind = dev.larattalabs.steward.module.ModuleKind.of(module.id());
 			var v = kind.isEmpty() ? null : ModuleOffers.verdict(kind.get().id());
-			if (kind.isEmpty() || ModuleOffers.kinds().stream().noneMatch(k -> k.id().equals(kind.get().id()))) moduleNo = "there is no working " + a.module().id().replace('_', ' ') + " in the catalog";
+			if (kind.isEmpty() || ModuleOffers.kinds().stream().noneMatch(k -> k.id().equals(kind.get().id()))) moduleNo = "there is no working " + module.id().replace('_', ' ') + " in the catalog";
 			else if (s.proposals().open().stream().anyMatch(x -> x.module() != null && x.module().moduleId().equals(kind.get().id())))
 				return "A working " + kind.get().role() + " waits in the inbox already.";
 			else if (ModuleOffers.standing(server, s, kind.get().id())) moduleNo = "one stands already";
@@ -216,7 +220,7 @@ public final class Talk {
 				var player = server.getPlayerList().getPlayers().stream().filter(x -> Settlements.at(x.level(), x.blockPosition()).map(h -> h.id().equals(s.id())).orElse(false))
 					.findFirst().orElse(null);
 				var town = ModuleOffers.town(server, s, player, district);
-				var d = dev.larattalabs.steward.module.ModuleOffer.decide(kind.get(), v, town, a.module().params(), ModuleOffers.bounds(s));
+				var d = dev.larattalabs.steward.module.ModuleOffer.decide(kind.get(), v, town, module.params(), ModuleOffers.bounds(s));
 				var lamp = d.ok() ? ModuleOffers.lamp(s, v.entry()) : null;
 				if (d.ok() && lamp.refused() == null) {
 					Proposal m = ModuleOffers.proposal(kind.get(), d, s, town.path().materials(), lamp.fallback(),
@@ -227,11 +231,36 @@ public final class Talk {
 				moduleNo = d.ok() ? lamp.refused() : d.why();
 			}
 		}
+		// the building asked for is of a module's type: no designed stand-in of that type; the steward says why, and nothing is proposed or priced
+		String left = plainLeftOut(a.building(), module != null && module.id().equals(dev.larattalabs.steward.module.ModuleTypes.moduleOf(a.building().type(), types)) ? moduleNo : null, types);
+		if (left != null) return left;
 		Proposal p = new Proposal("asked_" + Long.toString(now, 36) + "_" + a.building().type(), Character.toUpperCase(role.charAt(0)) + role.substring(1),
 			"You asked: \"" + clip(said, 120) + "\"" + (moduleNo == null ? "" : " A working one can't go here (" + moduleNo + "), so this is a decorative " + role
 				+ ", designed: about $" + Proposals.estimate(new Proposal("x", role, "", a.building(), now, "asked")) + "."), a.building(), now, "asked", district, null);
 		String added = addProposal(s, p);
 		return added != null ? added : moduleNo == null ? a.reply() : "A working " + role + " can't go here: " + moduleNo + ". I put a decorative one in the inbox instead, as its own proposal at its own price.";
+	}
+
+	/**
+	 * (slice MODULE-TYPE) The module a building ask stands for: the one the answer names, else the module whose type the building was asked in (talk is
+	 * model-written: a {@code storage_hall} building with no module is still a storage hall asked for), with no params; null for an ordinary building. Pure.
+	 */
+	static TalkAnswer.@Nullable Module moduleAsked(TalkAnswer a, java.util.Map<String, String> types) {
+		if (a.module() != null) return a.module();
+		String id = a.building() == null ? null : dev.larattalabs.steward.module.ModuleTypes.moduleOf(a.building().type(), types);
+		return id == null ? null : new TalkAnswer.Module(id, new com.google.gson.JsonObject());
+	}
+
+	/**
+	 * (slice MODULE-TYPE) What the steward says instead of proposing {@code b} when it is of a module's type (the module couldn't be offered:
+	 * {@code moduleNo}, or null when no module was looked at), or null for an ordinary building, proposed as asked. Pure.
+	 */
+	static @Nullable String plainLeftOut(dev.larattalabs.steward.model.ConceptCard.Building b, @Nullable String moduleNo, java.util.Map<String, String> types) {
+		String id = dev.larattalabs.steward.module.ModuleTypes.moduleOf(b.type(), types);
+		if (id == null) return null;
+		String role = dev.larattalabs.steward.module.ModuleTypes.role(id);
+		return (moduleNo == null ? "" : "A working " + role + " can't go here: " + moduleNo + ". ") + "I don't put a " + role + " in the inbox as an ordinary building: "
+			+ dev.larattalabs.steward.module.ModuleTypes.rule(id) + ".";
 	}
 
 	/**

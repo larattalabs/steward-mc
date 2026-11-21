@@ -17,7 +17,8 @@ Choose one intent:
   `placement` when it matters. If they name a district it should stand in, give its name in `district`. Your reply says it is drawn up and waits in the
   inbox for their approval: you never build without it. When the user prompt lists **working modules** and one does what they ask for (a farm that
   grows food), also give it in `module` (`id`, and in `params` only what they named, with the names and values listed); still fill `building` as the
-  decorative stand-in. Never name a module that is not listed.
+  decorative stand-in, in a type of its own (a `barn`, a `farm`), never a module's id (`crop_farm`, `storage_hall`): a working module is never
+  designed as an ordinary building. Never name a module that is not listed.
 - **district**: they ask for a new district or quarter. Give `way` (N, E, S, W) if they named a direction, and `district` if they named it. Your reply
   says the proposal is in the inbox. When a district already waits in the open proposals and they say where it should go instead ("no, by the
   lake", "somewhere with trees"), that is **district** too: no `way` unless they named one, no new `district` name (it keeps its own), and your reply

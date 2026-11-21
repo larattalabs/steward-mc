@@ -112,6 +112,11 @@ public interface ModuleKind {
 		};
 	}
 
+	/** (slice MODULE-TYPE) Every module kind Steward knows, whatever the catalog offers now: their types are never an ordinary building's. */
+	static List<ModuleKind> all() {
+		return List.of(CropFarm.INSTANCE, StorageHall.INSTANCE, FixturePlot.INSTANCE);
+	}
+
 	/** The catalog id a rule key offers ({@code module.crop_farm} -> {@code crop_farm}), or null for any other key. */
 	static @Nullable String idOf(@Nullable String ruleKey) {
 		return ruleKey != null && ruleKey.startsWith(RULE_PREFIX) && ruleKey.length() > RULE_PREFIX.length() ? ruleKey.substring(RULE_PREFIX.length()) : null;
