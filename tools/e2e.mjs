@@ -19,7 +19,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { pickFlows, groupFlows, packFlows, codeBlocks, closureOf, fixtureRefs, hashPaths, hashText, hashLib, skipDecision, applySkips, isStrict } from './lib/e2e-flows.mjs';
 import { useRamTmp, ramSidecarData, RAM_TMP } from './lib/ram-tmp.mjs';
-import { sweepStale, cleanupOwned } from './lib/tmp-owner.mjs';
+import { sweepStale, cleanupOwned, keptBounds } from './lib/tmp-owner.mjs';
 import { checkCommand, saveBarrier } from './lib/save-barrier.mjs';
 import { judgeSort } from './lib/hall-sort.mjs';
 import { overflowGrew } from './lib/overflow.mjs';
@@ -29,7 +29,7 @@ import { acquire as acquireSlot, release as releaseSlot, inheritedSlot, slotsOff
 import { install as installShutdown, onStop, shuttingDownNow, stopPid, childExited, listenerPid, commandOf, pidRuns, waitFor } from './lib/shutdown.mjs';
 import { processStart } from './lib/tmp-owner.mjs';
 import { checkFreeSpace, EXIT_LOW_DISK, keepReason, cleanupRun, mergeCleanups, laneRunDirs, addCleanup, claimRunDir, runItems, DELETE_LANE_DIRS, runTag, e2eWorld,
-  worldAtStart, markWorld, filesToWrite, laneDirName, laneUse } from './lib/disk.mjs';
+  worldAtStart, markWorld, filesToWrite, laneDirName, laneUse, claimAnswerFile } from './lib/disk.mjs';
 // temp files on the RAM disk when it's there (its own clients and the build inherit TMPDIR)
 useRamTmp();
 
@@ -492,8 +492,13 @@ async function preflight() {
   // the sidecar's data on the RAM disk when it's there (the 11-14 machine audit: ~3 GB written per worktree per 30 min); the world, logs and shots stay on disk
   // slice TMPSWEEP (mod/DEV.md "Temp dirs"): earlier runs' sidecar dirs whose owner is gone (a hard kill) go first; this run's own is owner-marked
   // and removed when this process ends, not when its client relaunches
-  const swept = sweepStale({ root: path.join(RAM_TMP, 'steward') });
-  if (swept.removed.length || swept.failed.length) console.log(`tmp-sweep: removed ${swept.removed.length} stale sidecar dir(s)${swept.removed.length ? ` (${swept.removed.join(', ')})` : ''}${swept.failed.length ? `, ${swept.failed.length} failed` : ''}`);
+  // (E2E-DISK-4) kept dirs (STEWARD_KEEP_TMP=1) whose owner is gone are bounded by age and a total cap; empty fallback dirs go too
+  const { warning: keptWarning, ...kept } = keptBounds();
+  if (keptWarning) console.log(`tmp-sweep: ${keptWarning}`);
+  const swept = sweepStale({ root: path.join(RAM_TMP, 'steward'), ...kept });
+  for (const s of swept.swept) console.log(`tmp-sweep: removed ${s.name}: ${s.why}${s.bytes ? `, ${(s.bytes / 1024 ** 3).toFixed(2)} GiB` : ''}`);
+  if (swept.failed.length) console.log(`tmp-sweep: ${swept.failed.length} failed (${swept.failed.join(', ')})`);
+  if (swept.overCap) console.log(`tmp-sweep: kept dirs still total ${(swept.keptBytes / 1024 ** 3).toFixed(2)} GiB, past the ${(kept.keptCapBytes / 1024 ** 3).toFixed(2)} GiB cap: the rest belong to live runs`);
   const sd = ramSidecarData(GAME, process.env, undefined, { fresh: true, own: true });
   ok('preflight', `no credentials, no other client; sidecar data on ${sd.mode === 'ram' ? `the RAM disk (${sd.dir})` : 'disk'}${sd.moved ? `, the old one kept at ${sd.moved}` : ''}${sd.owned ? ', removed at the end' : ''}`);
 }
@@ -7429,13 +7434,21 @@ let nDevModule = 0;
 async function devModule(r, ms = 120_000) {
   const lab = `e2e_${RUN_TAG}_${++nDevModule}`;
   const f = path.join(GAME, 'steward-modules', `${lab}.json`);
-  await cmd(`/steward dev module ${lab} ${JSON.stringify(r)}`);
-  for (let t = 0; t < ms / 200; t++) {
-    if (fs.existsSync(f)) {
-      try { const o = JSON.parse(fs.readFileSync(f, 'utf8')); fs.rmSync(f, { force: true }); return o; } catch { /* still being written */ }
+  // (E2E-DISK-3 P2) the answer's name is this run's before the request: an empty placeholder made exclusively, which the mod writes over
+  const claim = claimAnswerFile(f);
+  if (claim) { console.log(`dev module ${lab}: ${claim}`); return null; }
+  try {
+    await cmd(`/steward dev module ${lab} ${JSON.stringify(r)}`);
+    for (let t = 0; t < ms / 200; t++) {
+      try { const o = JSON.parse(fs.readFileSync(f, 'utf8')); fs.rmSync(f, { force: true }); return o; } catch { /* the placeholder, or still being written */ }
+      await sleep(200);
     }
-    await sleep(200);
+  } catch (e) {
+    try { if (fs.readFileSync(f, 'utf8') === '') fs.rmSync(f, { force: true }); } catch {}
+    throw e;
   }
+  // no answer: this run's placeholder goes (a half-written answer stays, for a look)
+  try { if (fs.readFileSync(f, 'utf8') === '') fs.rmSync(f, { force: true }); } catch {}
   return null;
 }
 

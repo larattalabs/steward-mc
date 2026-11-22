@@ -19,6 +19,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { acquire as acquireSlot, release as releaseSlot } from './lib/slot-queue.mjs';
 import { repairSidecarData } from './lib/ram-tmp.mjs';
+import { claimAnswerFile } from './lib/disk.mjs';
 import { checkCommand, savedOnDisk } from './lib/save-barrier.mjs';
 import { overflowGrew } from './lib/overflow.mjs';
 import { waitForPrograms } from './lib/helper-wait.mjs';
@@ -166,18 +167,28 @@ const req = (type, payload = {}, timeoutMs = 120_000) => dev.request(type, paylo
 // (SAVEB) an unknown or unparsable command throws (the bridge's ok only says the call did not throw); allowFail for one expected to
 const cmd = async (c, { allowFail = false } = {}) => checkCommand(await req('dev.command', { cmd: c }), { cmd: c, allowFail });
 let nmod = 0;
+/** (E2E-DISK-4) This process's tag in its answer names: pid and start time, so a reused pid never meets an earlier run's leftover. */
+const RUN_TAG = `${process.pid}_${Date.now().toString(36)}`;
 async function mod(r, timeoutMs = 900_000) {
-  const lab = `m4_${process.pid}_${++nmod}`;
+  const lab = `m4_${RUN_TAG}_${++nmod}`;
   const f = path.join(GAME, 'steward-modules', `${lab}.json`);
-  const a = await req('dev.command', { cmd: `/steward dev module ${lab} ${JSON.stringify(r)}` }, 120_000);
-  if (!a.ok) throw new Error(`module ${r.op}: ${a.error}`);
-  const end = Date.now() + timeoutMs;
-  while (Date.now() < end) {
-    if (fs.existsSync(f)) {
-      try { const o = JSON.parse(fs.readFileSync(f, 'utf8')); fs.rmSync(f, { force: true }); return o; } catch { /* still being written */ }
+  // (E2E-DISK-4) the answer's name is this run's before the request: an empty placeholder made exclusively, which the mod writes over
+  const claim = claimAnswerFile(f);
+  if (claim) throw new Error(`module ${r.op}: ${claim}`);
+  const dropPlaceholder = () => { try { if (fs.readFileSync(f, 'utf8') === '') fs.rmSync(f, { force: true }); } catch {} };
+  try {
+    const a = await req('dev.command', { cmd: `/steward dev module ${lab} ${JSON.stringify(r)}` }, 120_000);
+    if (!a.ok) throw new Error(`module ${r.op}: ${a.error}`);
+    const end = Date.now() + timeoutMs;
+    while (Date.now() < end) {
+      try { const o = JSON.parse(fs.readFileSync(f, 'utf8')); fs.rmSync(f, { force: true }); return o; } catch { /* the placeholder, or still being written */ }
+      await sleep(200);
     }
-    await sleep(200);
+  } catch (e) {
+    dropPlaceholder();
+    throw e;
   }
+  dropPlaceholder();
   throw new Error(`module ${r.op}: no answer in ${timeoutMs / 1000} s`);
 }
 async function readCells(cells) {

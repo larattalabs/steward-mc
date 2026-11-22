@@ -21,7 +21,7 @@ ln -s ../../steward-mc/node_modules node_modules
 `tools/e2e.mjs` and `tools/nightly.mjs` point TMPDIR at `/Volumes/MCTmp/tmp/steward` when that RAM disk exists. Their clients and builds inherit it. Noah approved the disk: a 24 GB volume made at login by the LaunchAgent `com.laratta.mctmp-ramdisk`, whose contents go at a reboot (`tools/lib/ram-tmp.mjs`).
 - Without the volume, or with `STEWARD_RAM_TMP=0`, TMPDIR stays as it was.
 - The game's run dirs (`mod/run`) stay on disk: the e2e reads its world, logs and screenshots there, and a failed night's world is kept for diagnosis.
-- **The sidecar's data** (`mod/run/architect/sidecar-data`) is on the RAM disk too (11-14). The machine audit measured about 3 GB written per worktree per 30 min there. e2e's preflight makes it a symlink to `/Volumes/MCTmp/tmp/steward/sidecar-<hash>`, one per checkout (each run dir has its own), emptied at each run's start and again at its end ("Temp dirs" below).
+- **The sidecar's data** (`mod/run/architect/sidecar-data`) is on the RAM disk too (11-14). The machine audit measured about 3 GB written per worktree per 30 min there. e2e's preflight makes it a symlink to `/Volumes/MCTmp/tmp/steward/sidecar-<hash>`, one per checkout (each run dir has its own), emptied at each run's start when it is the run's to empty, and again at its end ("Temp dirs" below).
   - An on-disk directory found there is renamed to `sidecar-data.ssd`, never deleted.
   - Without the volume, a link left dangling by a reboot becomes an empty directory again (`ramSidecarData`).
   - A dev client in the same checkout follows the link. The opt-in `secrets.json` check reads through it.
@@ -292,15 +292,29 @@ Every worktree and `--clients` run dir has its own, so by 11-16 sixteen of them 
   - Each outcome is printed: `tmp: removed|kept|not-mine|gone|failed <dir>`.
 - **The sweep.** At the start of each e2e run, `sweepStale` looks at the direct children of `/Volumes/MCTmp/tmp/steward` named
   `sidecar-*`. It removes those that carry a valid marker whose owner is gone, which are leftovers from a SIGKILL or a crash.
-  - It uses no age floor: a dead owner is decisive here, unlike Architect's 6 h default, which would have kept every dir that filled the disk.
-  - It never touches a live owner's dir, an unmarked dir, a symlink or a plain file.
+  - It uses no age floor for an unkept dir: a dead owner is decisive here, unlike Architect's 6 h default, which would have kept every dir
+    that filled the disk. Kept dirs and empty fallbacks have their own bounds (E2E-DISK-4, below).
+  - It never touches a live owner's dir, a symlink or a plain file, nor an unmarked dir other than an empty fallback (below).
   - Architect's `tools/tmp-sweep.mjs` CLI lists only the direct children of `/Volumes/MCTmp/tmp` and takes no root, so it never sees these.
   - Dirs from before this slice have no marker, and the sweep leaves them. A checkout's next run empties its own. Removing the rest takes a
     one-time manual cleanup.
 - **On disk** (`STEWARD_RAM_TMP=0`, or no volume): the same cleanup applies to `mod/run/architect/sidecar-data` only when this run made it, or
   when an earlier run had marked it and that owner is gone (it is emptied first). An existing directory that isn't marked, such as a dev
   client's data, is never removed.
-- **`STEWARD_KEEP_TMP=1`** keeps the dir, still marked. The next Steward e2e run started anywhere sweeps it, so copy out what you need first.
+- **`STEWARD_KEEP_TMP=1`** keeps the dir, its marker saying `kept` from the start (so a SIGKILL keeps it too). Since E2E-DISK-3 a later run
+  never empties it. Since E2E-DISK-4 the sweep bounds kept dirs, so repeated kept runs (2-6 GB each) can't fill the RAM disk. A kept dir whose
+  owner is gone goes once untouched for 24 h (`STEWARD_KEEP_TMP_HOURS`), and while all kept dirs total more than 8 GiB
+  (`STEWARD_KEEP_TMP_CAP_GIB`; live owners' count but are never taken) the dead owners' go oldest first. 0 turns either bound off. Each removal
+  prints `tmp-sweep: removed <dir>: <why>`; a total still past the cap (live runs only) is said too.
+- **A fresh run empties only what it owns** (E2E-DISK-3): the game dir's `sidecar-<hash>` is taken when it is absent, empty and unmarked
+  (what a run leaves), or marked by an owner provably gone (then emptied). Kept data or unmarked data (a dev client's) is left as it is and the
+  run starts in a new `sidecar-<hash>-XXXXXX` (mkdtemp) beside it. A dir held by another live run (say in its slot wait on the same game dir),
+  whether the game dir's own or the one its link points at, kept or not, refuses the run in preflight, before anything is emptied or relinked.
+- **Fallback dirs don't pile up** (E2E-DISK-4): at its end a run removes the `sidecar-<hash>-XXXXXX` it owns (not made again empty) and points
+  the link back at the game dir's `sidecar-<hash>`, where it pointed before. The sweep also removes empty unmarked fallbacks untouched for 10 min
+  (by rmdir, so one written into meanwhile stays) and a dead owner's kept fallback holding only its marker.
+- **Module answer files** (E2E-DISK-4): `tools/module-measure*.mjs` and `tools/module-catalog.mjs` claim each `steward-modules/<label>.json`
+  exclusively before the request (`claimAnswerFile`, as e2e does), under a pid-and-start-time tag, and drop the placeholder on a failure.
 
 ### Disk: cleanup after a run, the free-space guard (slice E2E-DISK, 2026-11-21, $0)
 
@@ -309,7 +323,8 @@ Minecraft/_work grew from 89 GB to about 977 GB (Steward about 684 GB), mostly e
 - **Cleanup after a run.** Each e2e driver (a `--clients` run's children each on their own run dir) ends by deleting what it made, and only what
   it can prove is its own (slice E2E-DISK-2, 11-21: every path it deletes is named for this run and owner-marked):
   - this run's world, `<run dir>/saves/Steward E2E <tag>` (200-470 MB). The tag is the run's own (`runTag`: base36 time, pid, random), the
-    name goes to the client in its launch env only (an explicit `ARCHITECT_AUTOWORLD_NAME` of that shape is refused). Once the client is in
+    name goes to the client in its launch env only (an explicit `ARCHITECT_AUTOWORLD_NAME` of that shape, in any case or spacing since
+    E2E-DISK-3, is refused, with or without `--keep-world`: the disk ignores case). Once the client is in
     the world the driver writes `.steward-e2e-owner.json` ({run, pid}, exclusive) into it, only when this run's client created it (fix round,
     GPT P1 #2): absent (lstat) when the driver launched its first client, a real dir (a symlink is refused) born after that launch, and this
     run's client log since then says `AutoWorld: creating world '<name>'`. Just before the delete the marker is read again: no marker or
@@ -319,7 +334,9 @@ Minecraft/_work grew from 89 GB to about 977 GB (Steward about 684 GB), mostly e
   - a `--clients` lead's lane dirs, `mod/run-c<k>-<tag>` (client 1 stays on `mod/run`). Each is made at its use with `mkdir` without `-p` and
     the owner marker (`claimRunDir`); a dir already there isn't this run's and the lane doesn't run on it. The lead hands its owner to the
     child (`E2E_LANE_OWNER`), and a driver on any `run-c<k>-<tag>` refuses to start unless the dir's marker is that owner (`laneUse`; fix
-    round, GPT P1 #1): one started by hand there makes and deletes nothing. The lead deletes a lane dir
+    round, GPT P1 #1): one started by hand there makes and deletes nothing. Since E2E-DISK-3 it judges the game dir by its real path
+    (symlinks resolved, a tail not made yet kept) and in any case, any worktree's `mod`: an alias or case variant of a lane is that lane, and a
+    dir inside a lane is always refused. The lead deletes a lane dir
     (`DELETE_LANE_DIRS`, on again) when every client on it exited 0, failed nothing, kept nothing and failed no delete, and its marker still names this run;
     otherwise it is kept and named. Only names with this run's tag are ever items, so an old plain `mod/run-c<k>` or another run's dir is
     never deleted. A fresh lane dir costs a configuration-cache miss and Architect's sidecar copy (~21 MB) on its first launch.
@@ -335,11 +352,11 @@ Minecraft/_work grew from 89 GB to about 977 GB (Steward about 684 GB), mostly e
     own root is never deleted, and a symlink is unlinked, never followed.
   - The sidecar data stays TMPSWEEP's ("Temp dirs" above): removed at every end, failed or not, since keeping 2-6 GB per failed run on the
     24 GB RAM disk brought back ENOSPC. `STEWARD_KEEP_TMP=1` keeps it for a look.
-  - **Known gaps** (E2E-DISK-2's GPT review, not fixed there): (P1 #3, pre-existing) the sidecar's RAM dir is named for the game dir, not the
-    run, and preflight's `fresh` empties it before the slot wait with no ownership check, so two drivers on one game dir can remove each
-    other's; the stale sweep also removes data an earlier run kept with `STEWARD_KEEP_TMP=1`. (P2 #5) `/steward dev module` answer files
-    (`<run dir>/steward-modules/<label>.json`, read and removed by the driver) were named by pid and a counter; they now carry the run tag
-    (`e2e_<tag>_<n>`), so another run's leftover answer can't match, but their creation still isn't exclusive.
+  - `/steward dev module` answer files (`<run dir>/steward-modules/e2e_<tag>_<n>.json`, read and removed by the driver): since E2E-DISK-3 the
+    driver claims the name first with an empty placeholder made exclusively (`claimAnswerFile`, `wx`), which the mod's writer (ModuleDev,
+    Java, not exclusive itself) writes over; a name already there fails that request. The module tools (`module-measure*.mjs`,
+    `module-catalog.mjs`) still name theirs by pid and a counter, unclaimed.
+  - The sidecar dir's gaps E2E-DISK-2 named (emptied unowned before the slot; `STEWARD_KEEP_TMP` data swept) are closed in "Temp dirs" above.
 - **The free-space guard.** `e2e.mjs` (not `--plan`, not a `--clients` child: its lead checked) and `nightly.mjs` refuse to start when the
   volume holding the worktree has less than **`E2E_MIN_FREE_GIB`** free (GiB, default **150**; statfs, no disk walk). The refusal says how much
   is free, writes summary.json with `refused`, and exits **5** (2 is usage, 3 a slot wait, 4 the slot CLI's own); the nightly writes a `NOSPACE` SUMMARY.md, and `--dry` prints the

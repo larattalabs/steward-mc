@@ -40,6 +40,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { acquire as acquireSlot, release as releaseSlot } from './lib/slot-queue.mjs';
 import { repairSidecarData } from './lib/ram-tmp.mjs';
+import { claimAnswerFile } from './lib/disk.mjs';
 import { styleBounds } from './lib/style-bounds.mjs';
 import { moduleShaOf, smokeCarry } from './lib/smoke-carry.mjs';
 import { waitForPrograms } from './lib/helper-wait.mjs';
@@ -278,19 +279,30 @@ async function stopClient() {
   }
 }
 let n = 0;
+/** (E2E-DISK-4) This process's tag in its answer names: pid and start time, so a reused pid never meets an earlier run's leftover. */
+const RUN_TAG = `${process.pid}_${Date.now().toString(36)}`;
 /** One `/steward dev module` request; its answer from <gameDir>/steward-modules/<label>.json. */
 async function mod(req, timeoutMs = 600_000) {
-  const lab = `m1_${process.pid}_${++n}`;
+  const lab = `m1_${RUN_TAG}_${++n}`;
   const f = path.join(GAME, 'steward-modules', `${lab}.json`);
-  const r = await dev.request('dev.command', { cmd: `/steward dev module ${lab} ${JSON.stringify(req)}` }, { timeoutMs: 120_000 });
-  if (!r.ok) throw new Error(`module ${req.op}: ${r.error}`);
-  const end = Date.now() + timeoutMs;
-  while (Date.now() < end) {
-    if (fs.existsSync(f)) {
-      try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { /* still being written */ }
+  // (E2E-DISK-4) the answer's name is this run's before the request: an empty placeholder made exclusively, which the mod writes over
+  const claim = claimAnswerFile(f);
+  if (claim) throw new Error(`module ${req.op}: ${claim}`);
+  const dropPlaceholder = () => { try { if (fs.readFileSync(f, 'utf8') === '') fs.rmSync(f, { force: true }); } catch {} };
+  let r;
+  try {
+    r = await dev.request('dev.command', { cmd: `/steward dev module ${lab} ${JSON.stringify(req)}` }, { timeoutMs: 120_000 });
+    if (!r.ok) throw new Error(`module ${req.op}: ${r.error}`);
+    const end = Date.now() + timeoutMs;
+    while (Date.now() < end) {
+      try { const o = JSON.parse(fs.readFileSync(f, 'utf8')); fs.rmSync(f, { force: true }); return o; } catch { /* the placeholder, or still being written */ }
+      await sleep(250);
     }
-    await sleep(250);
+  } catch (e) {
+    dropPlaceholder();
+    throw e;
   }
+  dropPlaceholder();
   throw new Error(`module ${req.op}: no answer in ${timeoutMs / 1000} s (${(r.messages ?? []).join(' ')})`);
 }
 const entryFile = (id) => {
