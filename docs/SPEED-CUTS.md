@@ -27,6 +27,11 @@ gate-verifier step (AGENTS.md speed rule 10).
 - Fix: a missing region now reads as REMOVED, and a wait that reaches its bound comes back as `timedOut` with state TIMEOUT, which fails
   (`tools/lib/region-wait.mjs`).
 
+**3. The game log across midnight.**
+- Problem: the game rolls `latest.log` over at 00:00. A log wait read from a byte offset past the new file's end, so it saw nothing and
+  stalled to its bound. That cascaded: run 2's supplied-growth, and batch 094's supplied growth cancel.
+- Fix: `logSince` now reads bytes and reads a rolled-over file whole (`readSince`).
+
 ## Cuts (in effect)
 
 | What | Min saved | No longer covered in batch and slice runs | Back with |
