@@ -225,6 +225,21 @@ class T4RDTest {
 	}
 
 	@Test
+	void withoutTxnRemovalsABusyGroupUndoStillReadsNoAbsenceAsGone() throws IOException {
+		// no removal_finished: absence would be read as gone on a healthy read; a busy refusal began nothing, so it never is
+		String id = nextId();
+		Settlement s = project(id, "grp_g2", "h1", "h2");
+		a.removeAnswer = Answer.BUSY;
+		a.loadHealthy = true;
+		Undo.mark(s.id(), true);
+		var e = placing(s);
+		a.sites.remove("h1");
+		Undo.groupUndo(null, ArchitectAccess.api().sites(null), s, e, e.siteGroup(), e.siteIds(), Map.of(), new RemoveOptions(false, s.owner()), said::add);
+		assertEquals(0, count(now(id), Kind.PROJECT_REMOVED), String.valueOf(said));
+		assertTrue(String.join("\n", said).contains("so nothing was taken down"), String.valueOf(said));
+	}
+
+	@Test
 	void aVillageUndoRefusedAsBusyIsNotedInTheStewardsWords() throws IOException {
 		a.features = T4;
 		String id = nextId();
@@ -282,13 +297,24 @@ class T4RDTest {
 		assertEquals(Updates.BusyUpdates.MAX_TRIES, timed, "a bounded number of timed tries");
 		assertEquals(1, sayings, "said once");
 		assertTrue(b.waiting("st_1@2"), "past the bound it waits (asked in the inbox)");
-		assertFalse(b.releaseWaits(), "another change's wait is not released by a removal's end");
 		assertEquals(Updates.BusyUpdates.REMOVAL_MS, b.refused("st_2@3", waits, "why").retryAfterMs());
 		assertTrue(b.releaseWaits());
 		assertFalse(b.waiting("st_2@3"));
 		b.forget("st_1@2");
 		assertFalse(b.waiting("st_1@2"));
-		assertEquals(Updates.BusyUpdates.SOON_MS, b.refused("st_1@2", other, "why").retryAfterMs(), "the player's ask counts from the start");
+		var again = b.refused("st_1@2", other, "why");
+		assertEquals(Updates.BusyUpdates.SOON_MS, again.retryAfterMs(), "the player's ask counts from the start");
+		assertTrue(again.say(), "and is said again: never silence after the player's ask");
+		// a typed wait for another change is not released by a removal's end; an untyped busy (its cause unknown) is
+		var op = new SiteBusy.Held(SiteBusy.Kind.OTHER, null, null, false, SiteBusy.Busy.OPERATION_IN_PROGRESS, "tx", "t", null);
+		var c = new Updates.BusyUpdates();
+		c.refused("st_3@2", op, "why");
+		assertFalse(c.releaseWaits(), "another change's wait is not released by a removal's end");
+		assertTrue(c.waiting("st_3@2"));
+		c.refused("st_1@2", other, "why");
+		assertTrue(c.releaseWaits());
+		assertFalse(c.waiting("st_1@2"), "untyped: released by a removal's end");
+		assertTrue(c.waiting("st_3@2"));
 	}
 
 	@Test

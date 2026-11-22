@@ -56,20 +56,20 @@ public final class RemovalEnds {
 	private static volatile @Nullable MinecraftServer server;
 
 	/**
-	 * Wires the event (T4RD-S, the T4c adapter): {@code SiteEvents.REMOVAL_FINISHED} subscribed once, at the first world whose Architect advertises
-	 * {@link #FEATURE}; an Architect without the event (a {@link LinkageError}) is logged and left to the sweep. Each event is posted to the server thread
-	 * and {@link #handle}d, and updates that waited behind a removal are looked at again ({@link Updates#removalFinished}). Which held note an event ends
-	 * (kind, id, stage, revision) is {@link Undo#finish}'s one match.
+	 * Wires the event (T4RD-S, the T4c adapter): {@code SiteEvents.REMOVAL_FINISHED} subscribed once, at mod init, so Architect's replay after a restart
+	 * (re-fired until delivered, as its recovery runs) is never fired before Steward listens; each event is used only while a world runs and Architect
+	 * advertises {@link #FEATURE}. An Architect without the event (a {@link LinkageError}) is logged and left to the sweep. Each event is posted to the
+	 * server thread and {@link #handle}d, and updates that waited behind a removal are looked at again ({@link Updates#removalFinished}). Which held note
+	 * an event ends (kind, id, stage, revision) is {@link Undo#finish}'s one match.
 	 */
 	public static void init() {
 		net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STARTING.register(srv -> server = srv);
 		net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STOPPING.register(srv -> server = null);
-		net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STARTED.register(srv -> {
-			if (subscribed || !enabled()) return;
-			try {
-				dev.larattalabs.architect.api.SiteEvents.REMOVAL_FINISHED.register(e -> {
+		if (subscribed) return;
+		try {
+			dev.larattalabs.architect.api.SiteEvents.REMOVAL_FINISHED.register(e -> {
 					MinecraftServer srv2 = server;
-					if (srv2 == null || e == null) return;
+					if (srv2 == null || e == null || !enabled()) return;
 					RemovalEnd end;
 					try {
 						end = of(e);
@@ -81,12 +81,11 @@ public final class RemovalEnds {
 						Updates.removalFinished();
 						handle(srv2, end, voice(srv2));
 					});
-				});
-				subscribed = true;
-			} catch (LinkageError x) {
-				Steward.LOGGER.warn("Architect advertises {}, but its REMOVAL_FINISHED could not be subscribed: held removals finish by the sweep only", FEATURE, x);
-			}
-		});
+			});
+			subscribed = true;
+		} catch (LinkageError x) {
+			Steward.LOGGER.warn("this Architect has no REMOVAL_FINISHED ({}): held removals finish by the sweep only", FEATURE, x);
+		}
 	}
 
 	/** Whether Architect fires {@code RemovalFinished} ({@link #FEATURE}); false when it can't be read. */

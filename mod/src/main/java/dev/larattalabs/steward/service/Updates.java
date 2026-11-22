@@ -356,7 +356,7 @@ public final class Updates {
 		record Step(boolean say, long retryAfterMs) {
 		}
 
-		private record Wait(boolean behindRemoval, String why) {
+		private record Wait(boolean behindRemoval, boolean untyped, String why) {
 		}
 
 		private final Map<String, Wait> waiting = new java.util.HashMap<>();
@@ -390,7 +390,7 @@ public final class Updates {
 
 		/** A version refused as busy: it waits; said the first time; a timed release while it has tries left. */
 		Step refused(String key, SiteBusy.Held h, String why) {
-			waiting.put(key, new Wait(h.waits(), why));
+			waiting.put(key, new Wait(h.waits(), h.busy() == null, why));
 			boolean first = said.add(key);
 			int n = tries.merge(key, 1, Integer::sum);
 			long after = n > MAX_TRIES ? -1 : h.waits() ? REMOVAL_MS : SOON_MS;
@@ -411,15 +411,19 @@ public final class Updates {
 			waiting.remove(key);
 		}
 
-		/** A removal finished: every version waiting behind a removal may be applied again. Whether any was. */
+		/**
+		 * A removal finished: every version waiting behind a removal may be applied again, and an untyped busy one too (its cause unknown: the async
+		 * delta path drops the detail, so a removal's end may be what it waited for). Whether any was.
+		 */
 		boolean releaseWaits() {
-			return waiting.values().removeIf(Wait::behindRemoval);
+			return waiting.values().removeIf(w -> w.behindRemoval() || w.untyped());
 		}
 
-		/** The player asked for it: tried now, counted from the start. */
+		/** The player asked for it: tried now, counted and said from the start. */
 		void forget(String key) {
 			waiting.remove(key);
 			tries.remove(key);
+			said.remove(key);
 		}
 
 		void clear() {
