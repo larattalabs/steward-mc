@@ -3,7 +3,7 @@
 // for temp files. When the volume is missing or not writable, or STEWARD_RAM_TMP=0, TMPDIR stays as it was.
 import fs from 'node:fs';
 import path from 'node:path';
-import { own as ownDir, readOwner, isHeld, isKept, ownedByMe, ownerGone, processStarts } from './tmp-owner.mjs';
+import { own as ownDir, readOwner, isHeld, isKept, ownedByMe, ownerGone, processStarts, noteLink } from './tmp-owner.mjs';
 
 export const RAM_TMP = '/Volumes/MCTmp/tmp';
 
@@ -46,6 +46,8 @@ export function repairSidecarData(gameDir, env = process.env, root = RAM_TMP) {
   try { fs.lstatSync(target); } catch { there = false; }
   if (!there && ramUp(env, root) && rel && !rel.startsWith('..') && !path.isAbsolute(rel)) {
     fs.mkdirSync(target, { recursive: true });
+    // (E2E-TIDY-3) a fallback target made again carries its link's record: the empty-fallback sweep leaves it while the link points at it
+    noteLink(target, link);
     return 'relinked';
   }
   fs.unlinkSync(link);

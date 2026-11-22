@@ -18,6 +18,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { regionUntilBy, readSince } from './lib/region-wait.mjs';
+import { graceBeforeQuit, readPending } from './lib/quit-grace.mjs';
 import { pickFlows, groupFlows, packFlows, codeBlocks, closureOf, fixtureRefs, hashPaths, hashText, hashLib, skipDecision, applySkips, isStrict, mergeFlowSeconds, tierSkips } from './lib/e2e-flows.mjs';
 import { useRamTmp, ramSidecarData, RAM_TMP } from './lib/ram-tmp.mjs';
 import { sweepStale, cleanupOwned, keptBounds } from './lib/tmp-owner.mjs';
@@ -106,6 +107,8 @@ const { decodeArwd } = await import(pathToFileURL(path.join(ARCH, 'kit', 'lib', 
 
 fs.mkdirSync(OUT, { recursive: true });
 const results = [];
+/** (E2E-QUIT-GRACE) evidence notes that never fail a flow (a removal still pending at a quit's bound): summary.json "warnings". */
+const warnings = [];
 /** The temp blueprint dirs this run made (mkdtemp), removed at its end whatever the outcome (slice E2E-DISK). */
 const tempInputs = [];
 const ok = (check, note = '') => { results.push({ check, ok: true, note, ...flowT() }); console.log(`ok ${check}${note ? ' (' + note + ')' : ''}`); };
@@ -242,8 +245,25 @@ async function herd() {
   }
 }
 
-async function quit() {
+/**
+ * (E2E-QUIT-GRACE) Before a dev.quit: the removals pending in this client's session (regions REMOVING, and site groups whose "Removing group" line in
+ * the game log, which a new client starts afresh, has no end line yet) are waited for, at most QUIT_GRACE_MS (60 s), so a quit after an undo never
+ * cuts Architect's removal short (batch 094: rg6's group g5, 3 s in). At the bound a warning goes into summary.json and the client quits anyway.
+ */
+async function quitGrace() {
+  const d = dev;
+  // a region list that fails or is refused leaves the log's open groups to decide; only a client that has exited reads as nothing to wait for
+  const read = () => readPending({ listRegions: () => d.request('dev.region.list', {}, { timeoutMs: 10_000 }), logText: () => readSince(LOG, 0),
+    clientGone: () => dev !== d || (client != null && client.exitCode !== null) });
+  const g = await graceBeforeQuit(read);
+  console.log(g.line);
+  if (g.outcome === 'timeout') warnings.push({ kind: 'quit-grace', flow: flowNow, pending: g.pending, waitedS: Math.round(g.waitedMs / 1000), message: g.line });
+}
+
+/** The client's dev.quit (it saves on stop). `cut`: the flow quits mid-removal on purpose (a resume after the restart is what it checks): no grace. */
+async function quit({ cut = false } = {}) {
   if (!dev) return;
+  if (!cut) await quitGrace();
   const r = await dev.request('dev.quit');
   if (r.ok) await dev.waitClosed(120_000);
   dev = null;
@@ -6205,8 +6225,8 @@ async function driveUntil(id, from, until, ms, onStep = null) {
 // ------------------------------------------------------------------ (GE) growth helpers
 
 /** The client stopped and started again on the same world (the save as the game wrote it). */
-async function restartClient() {
-  await quit();
+async function restartClient({ cut = false } = {}) {
+  await quit({ cut });
   launch();
   await connect();
 }
@@ -10073,7 +10093,8 @@ async function survivalQuarterFlow() {
       const midState = (await regionView(region)).state;
       const logged0 = removedCount(id) > n0;
       if (midState !== 'REMOVING' || logged0) { await away(); return fail(ul, `not caught mid-removal: ${midState}, logged ${logged0}; ${chatTail(from)}`); }
-      await restartClient();
+      // (E2E-QUIT-GRACE) cut on purpose: no grace before this quit
+      await restartClient({ cut: true });
       await cmd('/architect survival on');
       await cmd('/gamemode creative @p');
       // the player steps out after the restart: Architect's resumed removal goes on; nothing is asked of Steward
@@ -10270,6 +10291,8 @@ const flowTimes = [];
 let flowsAt = 0;
 /** (E2E-SPEED) the running flow's start: each check's row in summary.json carries `t`, its seconds into the flow, so a later sweep can see the phases. */
 let flowT0 = 0;
+/** The running flow's name (E2E-QUIT-GRACE's warnings name it), or null between flows. */
+let flowNow = null;
 function flowT() { return flowT0 ? { t: Math.round((Date.now() - flowT0) / 1000) } : {}; }
 /**
  * Names a flow; runFlows runs them in this order. `needs`: the earlier flows whose world this one builds on (districts needs the settlement proposals
@@ -10293,6 +10316,7 @@ async function runFlows() {
     console.log(`flow ${f.name}${why.get(f.name) ? ` (needed by ${why.get(f.name)})` : ''}`);
     const t0 = Date.now();
     flowT0 = t0;
+    flowNow = f.name;
     const load = Math.round(os.loadavg()[0] * 10) / 10;
     const before = results.length;
     try {
@@ -10301,6 +10325,7 @@ async function runFlows() {
     } finally {
       const mine = results.slice(before);
       flowT0 = 0;
+      flowNow = null;
       flowTimes.push({ name: f.name, seconds: Math.round((Date.now() - t0) / 1000), load, checks: mine.length, failed: mine.filter((r) => !r.ok).length });
     }
   }
@@ -10678,6 +10703,7 @@ if (laneRuns) {
     const s = c.summary;
     for (const r of s?.results ?? []) results.push({ ...r, client: `c${c.k}` });
     for (const f of s?.flows ?? []) flowTimes.push({ ...f, client: `c${c.k}` });
+    for (const w of s?.warnings ?? []) warnings.push({ ...w, client: `c${c.k}` });
     if (!s) results.push({ check: 'run', ok: false, why: c.refused ? `client c${c.k} not run: ${c.refused}` : `client c${c.k} wrote no summary (exit ${c.code})`, client: `c${c.k}` });
     else if (c.code !== 0 && !(s.failed > 0)) results.push({ check: 'run', ok: false, why: `client c${c.k} exited ${c.code}`, client: `c${c.k}` });
     clientRows.push({ client: `c${c.k}`, slot: c.slot ?? null, ...(c.borrowed ? { borrowed: c.borrowed } : {}), ...(c.waited ? { waited: c.waited } : {}), ports: [c.sidecarPort, c.devPort], gameDir: c.gameDir, flows: c.flows, packedSeconds: c.packed, seconds: c.seconds, sanitySeconds: s?.sanitySeconds ?? null, exit: c.code, failed: s?.failed ?? null });
@@ -10706,7 +10732,7 @@ if (cleanup) {
   for (const f of cleanup.failed) console.log(`disk: not deleted ${f.path ?? '?'}${f.client ? ` [${f.client}]` : ''}: ${f.why}`);
   if (cleanup.note) console.log(`disk: ${cleanup.note}`);
 }
-fs.writeFileSync(path.join(OUT, 'summary.json'), JSON.stringify({ mode, only, skipped, ...(skipUnchanged ? { unchanged } : {}), ...(CLIENT ? { client: CLIENT } : {}), ...(laneRuns ? { clients: clientRows } : {}), ...(slotWait ? { slot: slotWait } : slot ? { slot: { slot: slot.slot ?? null, ticket: slot.ticket ?? null, ...(slot.off ? { off: true } : {}), ...(slot.inherited ? { inherited: true } : {}) } } : {}), at: new Date().toISOString(), seconds, failed, ...(cleanup ? { cleanup } : {}), sanitySeconds: laneRuns ? null : flowsAt ? Math.round((flowsAt - started) / 1000) : null, flows: flowTimes, results }, null, 2));
+fs.writeFileSync(path.join(OUT, 'summary.json'), JSON.stringify({ mode, only, skipped, ...(skipUnchanged ? { unchanged } : {}), ...(CLIENT ? { client: CLIENT } : {}), ...(laneRuns ? { clients: clientRows } : {}), ...(slotWait ? { slot: slotWait } : slot ? { slot: { slot: slot.slot ?? null, ticket: slot.ticket ?? null, ...(slot.off ? { off: true } : {}), ...(slot.inherited ? { inherited: true } : {}) } } : {}), at: new Date().toISOString(), seconds, failed, ...(cleanup ? { cleanup } : {}), sanitySeconds: laneRuns ? null : flowsAt ? Math.round((flowsAt - started) / 1000) : null, flows: flowTimes, results, warnings: [...warnings] }, null, 2));
 if (!CLIENT) recordRun(flowTimes);
 if (laneRuns) {
   const sum = flowTimes.reduce((a, f) => a + f.seconds, 0);
@@ -10714,6 +10740,7 @@ if (laneRuns) {
   for (const r of results.filter((x) => !x.ok)) console.log(`FAIL [${r.client}] ${r.check}: ${r.why}`);
 }
 if (only) console.log(`only ${only.join(',')}: ${skipped.length} flows skipped`);
+for (const w of warnings) console.log(`warning${w.client ? ` [${w.client}]` : ''}${w.flow ? ` (${w.flow})` : ''}: ${w.message}`);
 if (slotWait) {
   console.log(`NOT RUN: ${waitLine(slotWait)}; a wait, not a FAIL (summary.json "slot")`);
   process.exit(3);

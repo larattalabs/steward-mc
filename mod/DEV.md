@@ -197,6 +197,13 @@ line (action, reason, write box).
   `E2E_LOAD_WAIT_MIN`, 15) runs only with `E2E_SLOTS=off`.
 - **A slot from Architect's queue** (slice SQ, 2026-11-16; Noah, 11-15: "Steward joins the queue"). See "The slot queue" below.
 - **Another checkout's ports:** set `STEWARD_PORT` / `STEWARD_DEV_PORT` (e.g. 8598/8599).
+- **A quit waits for removals** (E2E-QUIT-GRACE, 2026-11-22). Before each `dev.quit`, `quit()` waits up to 60 s for the removals pending in
+  that client's session: regions in `REMOVING` (`dev.region.list`), and site groups whose `Removing group gN` line in the game log has no
+  `Removal done|stopped of group gN` or `Removing group gN failed` yet (street towns have no region; a list that fails or times out leaves the
+  log to decide). Batch 094 quit 3 s into rg6's removal, so
+  its kept world looked like a stalled removal. Each quit prints `quit-grace: ...` (none pending, waited N s, or a warning). A removal still
+  pending at the bound goes into summary.json `warnings` (with the flow), never a FAIL, and the client quits anyway. A flow that cuts a
+  removal on purpose passes `{ cut: true }` (the survival-quarter resume check). `tools/lib/quit-grace.mjs`, `test/quit-grace.test.mjs`.
 
 `node tools/e2e.mjs stub` runs the whole paid flow at $0 on Architect's helper in sim mode (v0.12.2: `ARCHITECT_SIDECAR_BACKEND=sim`, notional measured
 costs, never Claude). Job answers are scripted with `/steward dev sim_answer card|talk <json>` (`ext["architect:simAnswer"]`, checked against the job's schema).
@@ -313,6 +320,14 @@ Every worktree and `--clients` run dir has its own, so by 11-16 sixteen of them 
 - **Fallback dirs don't pile up** (E2E-DISK-4): at its end a run removes the `sidecar-<hash>-XXXXXX` it owns (not made again empty) and points
   the link back at the game dir's `sidecar-<hash>`, where it pointed before. The sweep also removes empty unmarked fallbacks untouched for 10 min
   (by rmdir, so one written into meanwhile stays) and a dead owner's kept fallback holding only its marker.
+- **The sweep's bounds at a glance** (E2E-DISK-4/-5, E2E-TIDY-3). An unkept dir goes as soon as its owner is gone. A kept dir
+  (`STEWARD_KEEP_TMP=1`) whose owner is gone goes after `STEWARD_KEEP_TMP_HOURS` untouched (24), or oldest first while kept dirs total
+  more than `STEWARD_KEEP_TMP_CAP_GIB` (8); 0 turns either off, and a value that isn't a number >= 0 falls back to the default with a
+  warning. An empty unmarked fallback goes after 10 min. When the game dir's `sidecar-<hash>` isn't a directory (a file, a symlink;
+  E2E-DISK-5) it is never touched: the run's fallback is made again empty at its end so the link doesn't dangle, and since E2E-TIDY-3 it
+  carries `.steward-link` naming that link. The sweep never removes a dir whose recorded link still points at it (realpath, compared
+  case-insensitively; an unreadable record counts as holding), so a plain `runClient` keeps a target. Once the link points elsewhere or
+  is gone, the dir goes as an empty fallback. `repairSidecarData` records the link the same way when it makes a wiped fallback target again.
 - **Module answer files** (E2E-DISK-4): `tools/module-measure*.mjs` and `tools/module-catalog.mjs` claim each `steward-modules/<label>.json`
   exclusively before the request (`claimAnswerFile`, as e2e does), under a pid-and-start-time tag, and drop the placeholder on a failure.
 

@@ -164,10 +164,16 @@ export function removeOwned(dir, { link = null, primary = owned.get(dir)?.primar
   }
 }
 
-/** The link still points at exactly dir: dir is made again, empty (no marker: nothing of this run's is left in it). */
+/**
+ * The link still points at exactly dir: dir is made again, empty (no marker: nothing of this run's is left in it). (E2E-TIDY-3) A fallback made
+ * again carries the link's record (noteLink), so the sweep leaves it while the link points at it.
+ */
 function relink(link, dir) {
   try {
-    if (fs.lstatSync(link).isSymbolicLink() && fs.readlinkSync(link) === dir) fs.mkdirSync(dir, { recursive: true });
+    if (fs.lstatSync(link).isSymbolicLink() && fs.readlinkSync(link) === dir) {
+      fs.mkdirSync(dir, { recursive: true });
+      noteLink(dir, link);
+    }
   } catch {
     // no link (anymore): nothing to keep valid
   }
@@ -252,6 +258,51 @@ export const FALLBACK_RE = /^sidecar-[0-9a-f]+-[A-Za-z0-9]{6}$/;
 /** An empty unmarked fallback is left this long (minutes) before the sweep takes it: a run marks its new one at once, a dev client fills it. */
 export const EMPTY_MINUTES = 10;
 
+/**
+ * (E2E-TIDY-3) The record of the link a fallback dir was made again for (removeOwned's relink, repairSidecarData's 'relinked'): unmarked and empty,
+ * such a dir read as an empty fallback, and the sweep took it after EMPTY_MINUTES, leaving the game dir's link dangling for a plain runClient. The
+ * one rule: the sweep never removes a dir that a recorded link still points at (linkHolds).
+ */
+export const LINK_FILE = '.steward-link';
+
+/** Records `link` (a game dir's sidecar-data symlink) in dir, a fallback dir (FALLBACK_RE) made again for it; any other dir is left as it is. Never throws. */
+export function noteLink(dir, link) {
+  if (!FALLBACK_RE.test(path.basename(dir))) return false;
+  try {
+    fs.writeFileSync(path.join(dir, LINK_FILE), `${JSON.stringify({ link: path.resolve(link), at: new Date().toISOString() })}\n`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const sameDir = (a, b) => {
+  const real = (p) => { try { return fs.realpathSync.native(p); } catch { return path.resolve(p); } };
+  return real(a).toLowerCase() === real(b).toLowerCase();
+};
+
+/**
+ * Whether dir's link record names a symlink that still points at dir (realpath, compared case-insensitively). No record: false. Fail-safe: a
+ * record that isn't a regular file or doesn't parse, or a link that can't be read for another reason than being gone, counts as holding.
+ */
+export function linkHolds(dir) {
+  const f = path.join(dir, LINK_FILE);
+  let st;
+  try { st = fs.lstatSync(f); } catch (e) { return e?.code !== 'ENOENT'; }
+  let link;
+  try {
+    if (!st.isFile()) return true;
+    link = JSON.parse(fs.readFileSync(f, 'utf8'))?.link;
+    if (typeof link !== 'string' || !path.isAbsolute(link)) return true;
+  } catch {
+    return true;
+  }
+  let lst;
+  try { lst = fs.lstatSync(link); } catch (e) { return e?.code !== 'ENOENT' && e?.code !== 'ENOTDIR'; }
+  if (!lst.isSymbolicLink()) return false;
+  try { return sameDir(path.resolve(path.dirname(link), fs.readlinkSync(link)), dir); } catch { return true; }
+}
+
 /** The kept bounds from STEWARD_KEEP_TMP_HOURS and STEWARD_KEEP_TMP_CAP_GIB (numbers >= 0; 0 turns that bound off), else the defaults, said. */
 export function keptBounds(env = process.env) {
   const warn = [];
@@ -295,7 +346,7 @@ export function dirBytes(dir) {
  *     owners' go, oldest first; `overCap` says the total is still past it after that;
  *   - a dead owner's kept fallback holding nothing but its marker goes at once.
  * An empty unmarked fallback dir (`sidecar-<hash>-XXXXXX`, FALLBACK_RE; what a run before E2E-DISK-4 left) untouched for `emptyMinutes` goes too,
- * by rmdir: never recursively, so a dir written into meanwhile stays.
+ * by rmdir: never recursively, so a dir written into meanwhile stays. (E2E-TIDY-3) No dir a recorded link still points at is ever removed (linkHolds).
  * -> { root, removed: [names], kept: [names], failed: [names], swept: [{name, why, bytes?}], keptBytes, overCap }.
  *
  * (batch-074 GPT review P1) The snapshot `starts` is taken once, before the walk: a driver that starts after it and marks a dir before the walk
@@ -316,6 +367,7 @@ export function sweepStale({ root, prefix = 'sidecar-', hours = 0, now = Date.no
       if (!dryRun) {
         if (between) between(p);
         if (!fs.lstatSync(p).isDirectory()) { res.kept.push(name); return false; } // swapped for a symlink meanwhile: not followed
+        if (linkHolds(p)) { res.kept.push(name); return false; } // (E2E-TIDY-3) a live link's target
         // marked again since the judgement (another run took the name, or its run said kept), or its owner live after all: kept
         if (rawOwner(p) !== raw || !gone(o)) { res.kept.push(name); return false; }
         fs.rmSync(p, { recursive: true, force: true, maxRetries: 2, retryDelay: 50 });
@@ -339,11 +391,17 @@ export function sweepStale({ root, prefix = 'sidecar-', hours = 0, now = Date.no
     const o = parseOwner(raw);
     if (!o) {
       if (raw == null && FALLBACK_RE.test(name) && (now - lastTouched(p, st)) / 60_000 >= emptyMinutes) {
+        // empty: nothing in it, or only its link record (E2E-TIDY-3)
         let empty = false;
-        try { empty = fs.readdirSync(p).length === 0; } catch {}
+        try { empty = fs.readdirSync(p).every((n) => n === LINK_FILE); } catch {}
         if (!empty) continue;
+        // (E2E-TIDY-3) a link still points at it (a plain runClient writes there next): never removed
+        if (linkHolds(p)) { res.kept.push(name); continue; }
         try {
-          if (!dryRun) fs.rmdirSync(p); // ENOTEMPTY when written into meanwhile: kept
+          if (!dryRun) {
+            try { fs.unlinkSync(path.join(p, LINK_FILE)); } catch (e) { if (e?.code !== 'ENOENT') throw e; }
+            fs.rmdirSync(p); // ENOTEMPTY when written into meanwhile: kept
+          }
           res.removed.push(name);
           res.swept.push({ name, why: 'an empty fallback dir' });
         } catch (e) {
