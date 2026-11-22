@@ -3750,6 +3750,8 @@ async function composedSculptSurvivalFlow({ crash = false } = {}) {
   } finally {
     stop = true;
     if (feeder) await feeder;
+    // (batch 093 GPT P2) placement is slowed for the carve, water and refund halts: a missed halt window returns early, so put it back here too
+    if (mode && dev) await dev.request('dev.placement.slow', { on: false }).catch(() => null);
     await cmd('/steward dev modules {}').catch(() => null);
     await cmd('/defaultgamemode creative');
     await cmd('/architect survival off');
