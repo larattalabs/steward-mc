@@ -18,12 +18,14 @@ aggregation, a region's Busy or a group finish event, a group's own extraction, 
   and a tail.
 - **Updates**: a SITE_BUSY answer, as a failed future or a delta refusal (the async path drops its detail), is never put in `FAILED` and never
   logged. It waits, asked in the inbox and said once per version. Any REMOVAL_FINISHED releases a wait behind a removal; a timer releases
-  either kind. At most 5 timed tries per version per session, so Full autonomy can't loop. **Revert**: a busy refusal is a NOTE naming no
+  either kind, and a removal's end also releases an untyped busy (its cause unknown). At most 5 timed tries per version per session, so Full
+  autonomy can't loop; the player's own ask starts the count and the words again. **Revert**: a busy refusal is a NOTE naming no
   site change, never a FAILED REVERTED.
 - **Owed** (`OwedParts`): said only for parts whose recipient is the settlement's owner *and* whose reason is `crate_settle`, `crate_putback` or
   `group_refund`, an allowlist that keeps out `player_blocks`, `cargo`, unclaimed and later reasons. Used by `Undo.growth`, `takeUpEmpty`
   (refund line and `notPlacedNote`), `RemovalEnds`, and the sweep.
-- **The adapter** (`RemovalEnds.init`): REMOVAL_FINISHED is subscribed once, behind the feature and a LinkageError guard. `RemovalEnd` carries
+- **The adapter** (`RemovalEnds.init`): REMOVAL_FINISHED is subscribed once at mod init (so Architect's replay after a restart is never fired
+  before Steward listens), used only while a world runs with the feature, behind a LinkageError guard. `RemovalEnd` carries
   stage, revisionId and owedParts. `Undo.endedBy` is the one event-to-entry match, so an event says its refund only for the entry it took down.
   The sweep reads `Sites.removalResult` only for what it logs without the event.
 - **Bar 7b (S-1)**: on `removal_finished`, the placer's blocks are judged by `owedParts` (player_blocks, `dev.pt.uuid`) with the ground 0, and
@@ -52,17 +54,26 @@ aggregation, a region's Busy or a group finish event, a group's own extraction, 
 - **B10 (old saves):** no save format change. NOTE entries are an existing kind, and `SaveCompatTest` passes.
 
 ## Tests and red-again
-- T4RDTest: 13 rows. T4SeamTest's held(other) row now expects the busy words. Two RemovalStopsTest rows were red against the RC before the
+- T4RDTest: 14 rows (one proves a busy group undo never reads absence as gone without txn removals). T4SeamTest's held(other) row now expects the busy words. Two RemovalStopsTest rows were red against the RC before the
   WAITING_BEHIND words. npm `test/owed-cargo.test.mjs`: 4.
 - Red-again (`artifacts/t4r-pin/redagain.log`, each fix reverted and red, then restored):
   - kindOf, typedToken;
-  - chain, group and region busy;
-  - Updates' busyOf and its retry bound;
+  - chain, group (with and without T4) and region busy;
+  - Updates' busyOf, its retry bound, the re-ask said again, the untyped release;
   - the revert NOTE;
   - the owed reason and recipient filters;
   - the sweep's once;
   - the WAITING_BEHIND tail;
   - the 7b ground, guard, placer-filter and restart judges.
+
+## T4S-PRE's "at T4c" list
+1. The adapter in `RemovalEnds.init`: done (owedParts from the event, not `Sites.owed` keys).
+2. Owed from the result: done for `Undo.growth`'s refund line and `takeUpEmpty`'s `notPlacedNote`; the e2e conservation sums (OVF-S3) are TXN-S.
+3. `replayed()`: N/A, slice/T4R's `RemoveResult` has no such accessor. A replayed answer can't say "Refunded" twice because the words follow
+   only a log this pass wrote (`RemovalEnds.handle`, `Undo.finish`, `Growths.completed` before `takeUpEmpty` says anything).
+4. Architect's answers: taken (11-19, binding). revisionId is now on `RemovalEnd`, but no growth path reads it yet (Left).
+5. The runs (`stub --only supplied-growth`, hall step 9): wait for the post-fix jar. The hall's FKC1 row still has `TODO(T4c)` in
+   `tools/lib/t4-rows.mjs` (point it at `dev.stockpile.ledger` `custody[].onDisk`), and the held-group e2e row needs a T4 hold hook: both Left.
 
 ## Left
 - **At the real pin:**
