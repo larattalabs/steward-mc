@@ -117,6 +117,8 @@ test('evidence: small logs and JSON copied (regular files only, capped), never t
   fs.writeFileSync(path.join(src, 'jobs', 'j1', 'job.json'), '{}');
   fs.writeFileSync(path.join(src, 'jobs', 'j1', 'huge.json'), Buffer.alloc(3 << 20));
   fs.writeFileSync(path.join(src, 'pins.json'), '{}');
+  fs.writeFileSync(path.join(src, 'launcher.json'), '{"pid":1,"authToken":"abc"}');
+  fs.writeFileSync(path.join(src, 'logs', 'auth.log'), 'sent Authorization: Bearer abc');
   fs.writeFileSync(path.join(src, 'client.token'), 'secret');
   fs.writeFileSync(path.join(src, 'secrets.json'), '{"k":1}');
   fs.writeFileSync(path.join(src, 'programs', 'node_modules', 'x', 'package.json'), '{}');

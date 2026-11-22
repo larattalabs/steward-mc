@@ -228,7 +228,9 @@ export function clientOnGameDir(gameDir) {
 }
 
 /** What copyEvidence takes: logs and JSON (and .txt), each at most 1 MiB, 16 MiB in all; never node_modules, tokens or secrets. */
-export const EVIDENCE = { exts: ['.log', '.json', '.txt'], maxFile: 1 << 20, maxTotal: 16 << 20, skipDirs: ['node_modules', 'blobs'], skipNames: /token|secret|credential/i };
+export const EVIDENCE = { exts: ['.log', '.json', '.txt'], maxFile: 1 << 20, maxTotal: 16 << 20, skipDirs: ['node_modules', 'blobs'], skipNames: /token|secret|credential/i,
+  /** a file whose text names a credential (a JSON key, or `token=`/`Bearer`) is never copied */
+  skipText: /"[^"\n]*(token|secret|api[_-]?key|password|authorization|credential)[^"\n]*"\s*:|\b(token|api[_-]?key|password)\s*=|\bBearer\s/i };
 
 /**
  * Copies the small evidence files of a sidecar dir (regular files only, by lstat: links are never followed) to dest, keeping their relative paths.
@@ -247,8 +249,10 @@ export function copyEvidence(src, dest, { exts = EVIDENCE.exts, maxFile = EVIDEN
       if (!st.isFile() || EVIDENCE.skipNames.test(n) || !exts.includes(path.extname(n)) || n === '.arch-owner') continue;
       if (st.size > maxFile || out.bytes + st.size > maxTotal) { out.skipped++; continue; }
       try {
+        const text = fs.readFileSync(p);
+        if (EVIDENCE.skipText.test(text.toString('utf8'))) { out.skipped++; continue; }
         fs.mkdirSync(path.join(dest, rel), { recursive: true });
-        fs.copyFileSync(p, path.join(dest, r), fs.constants.COPYFILE_EXCL);
+        fs.writeFileSync(path.join(dest, r), text, { flag: 'wx' });
         out.files++;
         out.bytes += st.size;
       } catch { out.skipped++; }

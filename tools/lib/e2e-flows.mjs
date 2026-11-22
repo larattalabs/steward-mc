@@ -258,3 +258,40 @@ export function projectWall(lanes, { sanity = 0, stagger = 0 } = {}) {
 
 /** A lane's own time besides its flows: the client's launch, the sanity set and the closing restart (batches 090-096: about 3-4 min). */
 export const LANE_OVERHEAD_S = 240;
+
+/**
+ * e2e.mjs's top-level code blocks with each identifier imported from tools/lib standing for its whole module's text (what flowCode's closure
+ * reads). `readLib(rel)` gives a lib's text ('./lib/x.mjs' -> its source), or null when it can't be read.
+ */
+export function blocksWithLibs(src, readLib) {
+  const blocks = codeBlocks(src);
+  for (const m of src.matchAll(/^import\s*\{([^}]*)\}\s*from\s*'(\.\/lib\/[^']+)'/gm)) {
+    const text = readLib(m[2]);
+    for (const id of m[1].split(',').map((x) => x.trim().split(/\s+as\s+/).pop()).filter(Boolean)) blocks[id] = text;
+  }
+  return blocks;
+}
+
+/**
+ * (E2E-SPEED-2) The flows a batch touched by file, for --fast: a flow is touched when a block its code reaches (its closure, `closures[name].names`:
+ * an e2e.mjs block, or a lib identifier standing for its module) differs between the base and the head (or is new), or when a changed file is one
+ * of its fixtures (`closures[name].fixtures`; a directory ref, ending in '/', covers what is under it). A changed block that more than `shared` of
+ * the flows reach (the harness: launch, restarts, the shared libs) touches none by itself: every flow runs through it, so the sanity and fast sets
+ * already exercise it; it is listed in `harness`. `base` and `head` are blocksWithLibs maps; `changed` the changed paths. Mod (Java) changes map to
+ * no flow: the batch names those by word (--only). -> { touched: Map name -> why, harness: [block names] }.
+ */
+export function touchedByFiles({ list, closures, base, head, changed = [], shared = 0.5 }) {
+  const touched = new Map();
+  const diff = new Set(Object.keys(head).filter((n) => base[n] == null || hashText(String(base[n])) !== hashText(String(head[n]))));
+  const reach = new Map();
+  const timed = list.filter((f) => closures[f.name]);
+  for (const f of timed) for (const n of closures[f.name].names) if (diff.has(n)) reach.set(n, (reach.get(n) ?? 0) + 1);
+  const harness = [...reach].filter(([, k]) => k > shared * timed.length).map(([n]) => n).sort();
+  for (const f of timed) {
+    const c = closures[f.name];
+    const blocks = c.names.filter((n) => diff.has(n) && !harness.includes(n));
+    const fx = changed.filter((p) => c.fixtures.some((r) => (r.endsWith('/') ? p.startsWith(r) : p === r)));
+    if (blocks.length || fx.length) touched.set(f.name, [blocks.length ? `code ${blocks.slice(0, 4).join(', ')}${blocks.length > 4 ? ` +${blocks.length - 4}` : ''}` : '', fx.length ? `fixtures ${fx.slice(0, 3).join(', ')}` : ''].filter(Boolean).join('; '));
+  }
+  return { touched, harness };
+}

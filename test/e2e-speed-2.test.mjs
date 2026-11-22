@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { FAST_FLOWS, fastNames, fastPick, packFlows, groupFlows, projectWall, mergeFlowSeconds, tierSkips, LANE_OVERHEAD_S } from '../tools/lib/e2e-flows.mjs';
+import { FAST_FLOWS, fastNames, fastPick, packFlows, groupFlows, projectWall, mergeFlowSeconds, tierSkips, LANE_OVERHEAD_S, blocksWithLibs, touchedByFiles } from '../tools/lib/e2e-flows.mjs';
 import { NIGHTLY_PORTS, NIGHTLY_SIDECAR_PORTS, NIGHTLY_CLIENTS, stepArgs, nightFits, STOP_GRACE_MS, LIMIT_MIN } from '../tools/lib/nightly-plan.mjs';
 import { waitTmpFloor, tmpFloor } from '../tools/lib/disk.mjs';
 import { own, cleanupOwnedSettled } from '../tools/lib/tmp-owner.mjs';
@@ -182,4 +182,36 @@ test('item 5: a removal a straggler spoils is tried again, bounded, then said', 
   const stuck = await cleanupOwnedSettled({ remove: () => 'failed', sleep: async () => { sleeps++; }, tries: 4 });
   assert.deepEqual(stuck, [[dir, 'failed']]);
   fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('item 3: flows touched by file: their own code or fixtures changed; harness code every flow runs touches none by itself', () => {
+  const base = blocksWithLibs("import { h } from './lib/x.mjs';\nfunction aFlow() { return h() + helper(); }\nfunction bFlow() { return h(); }\nfunction cFlow() { return h(); }\nfunction helper() { return 1; }\n", () => 'export const h = 1;');
+  const head = blocksWithLibs("import { h } from './lib/x.mjs';\nfunction aFlow() { return h() + helper(); }\nfunction bFlow() { return h(); }\nfunction cFlow() { return h(); }\nfunction helper() { return 2; }\n", () => 'export const h = 2;');
+  const list = [{ name: 'a' }, { name: 'b' }, { name: 'c' }];
+  const closures = { a: { names: ['aFlow', 'h', 'helper'], fixtures: ['fixtures/talk/'] }, b: { names: ['bFlow', 'h'], fixtures: ['fixtures/one.json'] }, c: { names: ['cFlow', 'h'], fixtures: [] } };
+  const r = touchedByFiles({ list, closures, base, head, changed: ['fixtures/one.json', 'mod/src/main/X.java'] });
+  // helper (a's own) and b's fixture; h is the harness (all three reach it), Java maps to no flow
+  assert.deepEqual([...r.touched.keys()], ['a', 'b']);
+  assert.match(r.touched.get('a'), /code helper/);
+  assert.match(r.touched.get('b'), /fixtures fixtures\/one\.json/);
+  assert.deepEqual(r.harness, ['h']);
+  // a fixture directory covers what is under it
+  assert.deepEqual([...touchedByFiles({ list, closures, base: head, head, changed: ['fixtures/talk/x.json'] }).touched.keys()], ['a']);
+});
+
+test('item 3: e2e adds the touched flows to --fast, with what they need, before the tier skips', () => {
+  assert.match(SRC, /for \(const \[n, w\] of fastTouched\(\)\)/);
+  assert.ok(SRC.indexOf('fastTouched()) {') < SRC.indexOf('for (const sk of tierSkips(flows, why'), 'touched flows still pass the tier skips');
+});
+
+// ------------------------------------------------------------------ item 5: the wiring
+
+test('item 5: the lead empties each child\'s sidecar dir after it ends, the nightly after each step, the driver with evidence and retries', () => {
+  assert.match(SRC, /const reap = reapSidecar\(at\.gameDir, \{ pid: child\.pid/);
+  assert.match(SRC, /Date\.parse\(x\?\.at \?\? ''\) >= t0/, 'only this child\'s summary names its kept world');
+  assert.match(SRC, /copyEvidence\(sidecarDir\.dir, path\.join\(WORLD, 'steward-sidecar-evidence'\)\)/);
+  assert.match(SRC, /of await cleanupOwnedSettled\(\)\)/);
+  const nightly = fs.readFileSync(new URL('../tools/nightly.mjs', import.meta.url), 'utf8');
+  assert.match(nightly, /releaseSlot\(slot\.ticket, \{ log \}\);\n\s+\}\n(\s+\/\/.*\n)*\s+reapWorktree\(\);/);
+  assert.match(nightly, /const r = reapSidecar\(path\.join\(mod, n\)\);/);
 });

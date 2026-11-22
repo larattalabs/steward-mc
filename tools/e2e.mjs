@@ -18,7 +18,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { regionUntilBy, readSince } from './lib/region-wait.mjs';
-import { pickFlows, groupFlows, packFlows, codeBlocks, closureOf, fixtureRefs, hashPaths, hashText, hashLib, skipDecision, applySkips, isStrict, mergeFlowSeconds, tierSkips, fastPick, fastNames, projectWall, LANE_OVERHEAD_S } from './lib/e2e-flows.mjs';
+import { pickFlows, groupFlows, packFlows, codeBlocks, closureOf, fixtureRefs, hashPaths, hashText, hashLib, skipDecision, applySkips, isStrict, mergeFlowSeconds, tierSkips, fastPick, fastNames, projectWall, LANE_OVERHEAD_S, blocksWithLibs, touchedByFiles } from './lib/e2e-flows.mjs';
 import { useRamTmp, ramSidecarData, RAM_TMP, reapSidecar, copyEvidence } from './lib/ram-tmp.mjs';
 import { sweepStale, cleanupOwnedSettled, keptBounds } from './lib/tmp-owner.mjs';
 import { checkCommand, saveBarrier } from './lib/save-barrier.mjs';
@@ -72,6 +72,8 @@ const fullTier = process.argv.includes('--full');
 // (E2E-SPEED-2, Noah 11-22) --fast: the sanity set, one flow per risk area (FAST_FLOWS in tools/lib/e2e-flows.mjs) and the flows --only names (the
 // batch's touched flows). Light-only batches only: a strict batch never uses it (AGENTS.md speed rules 9, 10); summary.json says `tier: 'fast'`
 const fastTier = process.argv.includes('--fast');
+// --fast's touched flows by file: changed since --touched-base <ref> (default: the merge base with main; 'none': by --only words alone)
+const touchedBase = argOf('--touched-base');
 const flowsArg = argOf('--flows');
 const exact = flowsArg == null ? null : flowsArg.split(',').map((w) => w.trim()).filter(Boolean);
 const ports = portsArg ? portsArg.split(',').map(Number) : null;
@@ -10391,6 +10393,11 @@ function planFlows() {
   if (planMemo) return planMemo;
   let why = exact ? new Map(exact.map((n) => [n, ''])) : fastTier ? fastPick(flows, only) : pickFlows(flows, only);
   if (fastTier && !exact) {
+    for (const [n, w] of fastTouched()) {
+      if (!why.has(n)) { why.set(n, ''); console.log(`--fast: ${n} touched (${w})`); }
+    }
+    for (const f of flows) if (why.has(f.name)) for (const n of f.needs ?? []) if (!why.has(n)) why.set(n, f.name);
+    why = new Map(flows.filter((f) => why.has(f.name)).map((f) => [f.name, why.get(f.name)]));
     const missing = fastNames().filter((n) => !flows.some((f) => f.name === n));
     if (missing.length) throw new Error(`--fast: the fast set names flows e2e.mjs doesn't: ${missing.join(', ')}`);
     console.log(`--fast (light-only batches; never a strict batch): ${[...why.keys()].join(', ')}${only ? ` (with --only ${only.join(',')})` : ''}, plus the sanity set`);
@@ -10422,6 +10429,32 @@ function planFlows() {
     why = r.run;
   }
   return (planMemo = { why });
+}
+
+/**
+ * (E2E-SPEED-2) The flows this batch touched by file since --touched-base (default: the merge base with main): a block of e2e.mjs or a tools/lib
+ * module its code reaches changed, or one of its fixtures (touchedByFiles). Mod sources map to no flow: the batch names those with --only words.
+ * A base git can't read fails the run (never a silent "nothing touched"). -> Map name -> why.
+ */
+function fastTouched() {
+  if (touchedBase === 'none') return new Map();
+  const git = (...a) => execFileSync('git', a, { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  let base;
+  try {
+    base = touchedBase || git('merge-base', 'HEAD', 'main').trim();
+    git('rev-parse', '--verify', `${base}^{commit}`);
+  } catch (e) {
+    throw new Error(`--fast: the touched base ${touchedBase || 'merge-base HEAD main'} can't be read (${String(e.stderr ?? e.message).trim().split('\n')[0]}); pass --touched-base <ref>, or none`);
+  }
+  const changed = git('diff', '--name-only', base).split('\n').filter(Boolean);
+  const show = (rel) => { try { return git('show', `${base}:${rel}`); } catch { return null; } };
+  const baseSrc = show('tools/e2e.mjs') ?? '';
+  const baseBlocks = blocksWithLibs(baseSrc, (r) => show(path.posix.join('tools', r)));
+  const closures = {};
+  for (const f of flows) { const c = flowCode(f); closures[f.name] = { names: c.names, fixtures: fixtureRefs(c.text) }; }
+  const { touched, harness } = touchedByFiles({ list: flows, closures, base: baseBlocks, head: e2eBlocks(), changed });
+  console.log(`--fast: ${changed.length} file(s) changed since ${base.slice(0, 12)}; ${touched.size} flow(s) touched by file${harness.length ? `; harness code changed (every flow runs it, the sanity and fast sets cover it): ${harness.slice(0, 8).join(', ')}${harness.length > 8 ? ` +${harness.length - 8}` : ''}` : ''}`);
+  return touched;
 }
 
 /** The last seconds of each flow: ET's last summary, then flow-times.json (every run's, newest kept); E2E_TIMES names another summary or times file. */
@@ -10535,7 +10568,8 @@ async function lead() {
     const code = await new Promise((r) => child.on('close', (x) => r(x ?? 1)));
     // (E2E-SPEED-2 item 5) a child that ended without emptying its RAM-disk sidecar dir (SIGKILLed past its stop bound): emptied here, proven its
     // (this lane's game dir in the marker, the child's pid, gone, no JVM on the dir); a failed lane's evidence into its kept world first
-    const sumNow = readJson(path.join(c.out, 'summary.json'), null);
+    // this child's summary only (one SIGKILLed leaves the last run's in place): written after its spawn
+    const sumNow = ((x) => (Date.parse(x?.at ?? '') >= t0 ? x : null))(readJson(path.join(c.out, 'summary.json'), null));
     const keptWorld = sumNow?.cleanup?.kept?.find((k) => k.what === 'the e2e world' && path.resolve(path.dirname(k.path)) === path.resolve(at.gameDir, 'saves'))?.path;
     const reap = reapSidecar(at.gameDir, { pid: child.pid, ...(keptWorld && !fs.existsSync(path.join(keptWorld, 'steward-sidecar-evidence')) ? { evidenceTo: path.join(keptWorld, 'steward-sidecar-evidence') } : {}) });
     if (reap.outcome === 'emptied' || reap.outcome === 'live' || reap.outcome === 'failed') console.log(`tmp: client c${c.k}'s sidecar dir ${reap.dir ?? '?'}: ${reap.outcome}${reap.why ? ` (${reap.why})` : ''}`);

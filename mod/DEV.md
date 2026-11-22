@@ -438,8 +438,13 @@ Noah, 11-22: "1+2+3: all speed items", then items 5 and 6.
   **82 min on 2 lanes and 59 min on 3** (9177 s of flows; the composed and gate-mech families pack as groups). A lane whose slot doesn't come
   still falls back to running after c1, and every lane after it too.
 - **`--fast`** (stub only; not with `--full` or `--flows`): the sanity set, one flow per risk area (`FAST_FLOWS`, `tools/lib/e2e-flows.mjs`, by
-  exact name) and the flows `--only` names (the batch's touched flows: names, tags or words), with what they need. For **light-only batches**;
-  a strict batch never uses it. summary.json says `tier: 'fast'`. It projects about 11 min on 3 clients. `docs/SPEED-CUTS.md` has the row.
+  exact name), the flows `--only` names (the batch's words: names, tags or words) and the flows **touched by file** since `--touched-base <ref>`
+  (default: the merge base with `main`; `none` turns it off), each with what it needs. Touched by file: a block of `tools/e2e.mjs` or a
+  `tools/lib` module the flow's code reaches changed, or one of its fixtures (`touchedByFiles`). A changed block more than half the flows reach
+  (the harness: launch, restarts, the shared libs) touches none by itself and is listed as harness code: every flow runs it, so the sanity and
+  fast sets cover it. Mod (Java) changes map to no flow: name those flows with `--only`. A base git can't read fails the run. For
+  **light-only batches**; a strict batch never uses it. summary.json says `tier: 'fast'`. The set alone projects about 11 min on 3 clients.
+  `docs/SPEED-CUTS.md` has the row.
 - **The nightly's stub runs on 2 clients**: `e2e.mjs stub --clients 2 --ports 8590,8600 --stagger 120` with `E2E_NIGHTLY=1`, c1 on 8590/8591,
   c2 on 8600/8601 (reserved for it). The night is skipped when any of the four is taken. `node tools/nightly.mjs --dry` prints the argv, the ports
   and the fit from `stub --plan` (about 112 of 165 min). At its limit the night's SIGKILL now follows its SIGTERM by 180 s (was 30 s), past a
@@ -456,7 +461,7 @@ Noah, 11-22: "1+2+3: all speed items", then items 5 and 6.
   realpath(`/Volumes/MCTmp/tmp/steward`) named `sidecar-<hex>[-XXXXXX]`; its marker names this game dir (real path, any case) and, for a lead,
   the child's pid; it isn't kept; its owner is gone; no client JVM runs on the game dir; and the marker is unchanged just before the removal.
   The dir is made again empty, so the link stays valid. `STEWARD_KEEP_TMP=1` keeps everything. A failed run's small evidence (`.log`, `.json`,
-  `.txt` under 1 MiB, 16 MiB in all; never `node_modules`, `blobs`, tokens or secrets, links never followed) is copied first into its kept world,
+  `.txt` under 1 MiB, 16 MiB in all; never `node_modules`, `blobs`, a file named or holding a token, secret, key or password, links never followed) is copied first into its kept world,
   `saves/Steward E2E <tag>/steward-sidecar-evidence/`, which the kept world's delete note covers.
   - The 11-22 incident (38 MiB free, 19 GiB under `tmp/steward`) was mostly live runs at once: on a normal end every dir was already empty
     (95 empty `sidecar-*` dirs, one live 2.4 GiB). The floor is what keeps concurrent runs from filling it.
