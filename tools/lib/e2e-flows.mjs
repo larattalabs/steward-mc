@@ -176,3 +176,37 @@ export function applySkips(list, why, skips) {
   for (const f of list) if (run.has(f.name)) pull(f);
   return { run, skipped: [...why.keys()].filter((n) => !run.has(n)) };
 }
+
+// ------------------------------------------------------------------ slice E2E-SPEED: packing from a committed baseline, the --full tier
+
+/**
+ * Each flow's seconds from timing sources, earliest first, a later source overriding an earlier one per flow. A source is a summary
+ * ({ flows: [{ name, seconds }] }), flow-times.json ({ name: { seconds } }) or the committed baseline ({ seconds: { name: s } }); null skips.
+ */
+export function mergeFlowSeconds(sources) {
+  const out = {};
+  for (const j of sources) {
+    if (!j || typeof j !== 'object') continue;
+    if (Array.isArray(j.flows)) { for (const x of j.flows) if (Number.isFinite(x?.seconds)) out[x.name] = x.seconds; continue; }
+    const m = j.seconds && typeof j.seconds === 'object' && !Array.isArray(j.seconds) ? j.seconds : j;
+    for (const [k, v] of Object.entries(m)) {
+      const s = Number.isFinite(v) ? v : v?.seconds;
+      if (Number.isFinite(s)) out[k] = s;
+    }
+  }
+  return out;
+}
+
+/**
+ * The flows a run leaves out by tier (E2E-SPEED, Noah 11-21: speed over coverage): a `nightlyOnly` flow runs only in the nightly, a `full` one in
+ * the nightly or with --full; either runs when --only names it exactly. `why` is pickFlows' map; returns [{ name, why }] of the flows to drop from it.
+ */
+export function tierSkips(list, why, { nightly = false, full = false, only = null } = {}) {
+  const out = [];
+  for (const f of list) {
+    if (!why.has(f.name) || (only ?? []).includes(f.name)) continue;
+    if (f.nightlyOnly && !nightly) out.push({ name: f.name, why: `nightly-only (${f.nightlyOnly}); name it in --only to run it` });
+    else if (f.full && !nightly && !full) out.push({ name: f.name, why: `full tier (${f.full}); --full or --only ${f.name} runs it` });
+  }
+  return out;
+}
