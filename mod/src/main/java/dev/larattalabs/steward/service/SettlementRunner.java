@@ -3176,7 +3176,7 @@ public final class SettlementRunner {
 	/** The growth plan's own lots (box, frame, IRR's report), read back by the key that planned it; null when Architect has it no more. */
 	private @org.jspecify.annotations.Nullable List<dev.larattalabs.architect.api.LotSpec> growthPlanLots() {
 		if (vPlanId == null || growKey == null) return null;
-		return ArchitectApi.get().regions().planByKey(settlement.owner(), opKey(growKey)).filter(p -> vPlanId.equals(p.planId()))
+		return ArchitectAccess.api().regions().planByKey(settlement.owner(), opKey(growKey)).filter(p -> vPlanId.equals(p.planId()))
 			.map(dev.larattalabs.architect.api.RegionPlan::lots).orElse(null);
 	}
 
@@ -3348,7 +3348,7 @@ public final class SettlementRunner {
 			return;
 		}
 		// (QD, S-M5-9) a module from materials is realised under its approved bound as maxBill, never uncapped
-		if (!ArchitectApi.get().features().contains(MAX_BILL)) {
+		if (!ArchitectAccess.api().features().contains(MAX_BILL)) {
 			say("Not placed: this Architect can't hold a build to the bill you approved (it has no maxBill). Nothing was consumed.");
 			feed(new Pipeline.Cancel());
 			return;
@@ -3356,7 +3356,7 @@ public final class SettlementRunner {
 		moduleBusy = true;
 		int session = Session.current();
 		String key = ModulePlacement.cleared(vPlanId, entries);
-		ArchitectApi.get().regions().quote(vPlanId, entries).whenComplete((q, err) -> server.execute(() -> {
+		ArchitectAccess.api().regions().quote(vPlanId, entries).whenComplete((q, err) -> ArchitectAccess.onServer(server, () -> {
 			moduleBusy = false;
 			if (!placingModules(session)) return;
 			if (err != null || q == null) {
@@ -3369,7 +3369,7 @@ public final class SettlementRunner {
 			if (bill == null) { say("Not placed: Architect's quote is not a bill of items. Nothing was consumed."); feed(new Pipeline.Cancel()); return; }
 			// (QD, Architect QL) the quote's terrain part: those items may go a little over (the allowance), every other item stays exact; an
 			// Architect without it keeps every item exact
-			Map<String, Integer> terrain = ArchitectApi.get().features().contains(QUOTE_TERRAIN) ? q.terrain() : Map.of();
+			Map<String, Integer> terrain = ArchitectAccess.api().features().contains(QUOTE_TERRAIN) ? q.terrain() : Map.of();
 			JsonObject allowed = dev.larattalabs.steward.module.ModuleBound.allowed(bill, terrain);
 			if (allowed == null) { say("Not placed: Architect's quote has a terrain count that is not a count. Nothing was consumed."); feed(new Pipeline.Cancel()); return; }
 			var now = moduleOrders.get(lot);
@@ -3798,7 +3798,14 @@ public final class SettlementRunner {
 	private void sendApproved(String sha, dev.larattalabs.architect.api.ApprovedRealise request, Map<String, String> lotEntries,
 		@org.jspecify.annotations.Nullable ServerPlayer actor, JsonObject ext, boolean first, int session) {
 		var regions = ArchitectAccess.api().regions();
-		regions.realiseApproved(request)
+		// (FENCE-TESTS-3) a throw on the call itself is answered as a failed realise (as quoteComposed's quote is), never left in flight
+		java.util.concurrent.CompletableFuture<String> sent;
+		try {
+			sent = regions.realiseApproved(request);
+		} catch (RuntimeException | LinkageError e) {
+			sent = java.util.concurrent.CompletableFuture.failedFuture(e);
+		}
+		sent
 			.whenComplete((id, err) -> ArchitectAccess.onServer(server, () -> {
 				if (!Session.is(session)) return;
 				Throwable e = err == null ? null : err.getCause() != null ? err.getCause() : err;

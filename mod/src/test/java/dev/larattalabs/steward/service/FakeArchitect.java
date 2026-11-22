@@ -246,8 +246,28 @@ final class FakeArchitect {
 	String realiseOwner = "owner";
 	/** (TESTABLE-ARCH) Run with each call's line as it is recorded (before it is answered). */
 	java.util.function.Consumer<String> onCall = c -> {};
+	/**
+	 * (FENCE-TESTS-3) Calls that throw synchronously (Architect's API failing on the call itself, not through its future): a call whose line starts
+	 * with a key is recorded, then throws that key's error, as an Architect that throws before answering would.
+	 */
+	final Map<String, Throwable> throwOn = new LinkedHashMap<>();
+	/** (FENCE-TESTS-3) The thread each call in {@link #calls} was made on, index for index. */
+	final List<Thread> callThreads = new ArrayList<>();
 	final Map<String, Site> sites = new LinkedHashMap<>();
-	final List<String> calls = new ArrayList<>();
+	/** Every call, in order; (FENCE-TESTS-3) each one's thread is recorded beside it in {@link #callThreads}, whichever way it is recorded. */
+	final List<String> calls = new ArrayList<>() {
+		@Override
+		public boolean add(String line) {
+			callThreads.add(Thread.currentThread());
+			return super.add(line);
+		}
+
+		@Override
+		public void clear() {
+			callThreads.clear();
+			super.clear();
+		}
+	};
 	final Ledger ledger = new Ledger();
 	Answer undoAnswer = Answer.APPLY;
 	Answer removeAnswer = Answer.APPLY;
@@ -336,6 +356,22 @@ final class FakeArchitect {
 				}
 				yield quote == null ? CompletableFuture.failedFuture(new ArchitectRefused(Reason.SITE_BUSY, "no quote")) : CompletableFuture.completedFuture(quote);
 			}
+			// (FENCE-TESTS-3) a module growth's read-only quote of its plan ({@code Regions.quote}): answered as {@code quoteApproved} is, with {@link #quote}
+			case "quote" -> {
+				call("regions.quote " + a[0] + " " + a[1]);
+				if (quoteHold) {
+					var f = new CompletableFuture<dev.larattalabs.architect.api.Quote>();
+					var q = quote;
+					held.add(() -> f.complete(q));
+					yield f;
+				}
+				yield quote == null ? CompletableFuture.failedFuture(new ArchitectRefused(Reason.SITE_BUSY, "no quote")) : CompletableFuture.completedFuture(quote);
+			}
+			// (FENCE-TESTS-3) a growth's plan found by its key: none (the growth plan can't be read back)
+			case "planByKey" -> {
+				call("regions.planByKey " + a[0] + " " + a[1]);
+				yield Optional.empty();
+			}
 			case "realiseApproved" -> realiseApproved((dev.larattalabs.architect.api.ApprovedRealise) a[0]);
 			case "realiseByKey" -> {
 				call("regions.realiseByKey " + a[1]);
@@ -404,6 +440,12 @@ final class FakeArchitect {
 	private void call(String line) {
 		calls.add(line);
 		onCall.accept(line);
+		for (var e : throwOn.entrySet()) if (line.startsWith(e.getKey())) sneaky(e.getValue());
+	}
+
+	@SuppressWarnings("unchecked")
+	private static <T extends Throwable> void sneaky(Throwable t) throws T {
+		throw (T) t;
 	}
 
 	/**
