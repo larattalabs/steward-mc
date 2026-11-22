@@ -279,11 +279,14 @@ class T4RDTest {
 		assertNull(Updates.BusyUpdates.busyOf(new IllegalStateException("x"), null));
 	}
 
+	private static dev.larattalabs.architect.api.RemovalFinished finished(String kind, String id, String stage) {
+		return new dev.larattalabs.architect.api.RemovalFinished(kind, id, stage, null, new dev.larattalabs.architect.api.RemoveResult(true, List.of(), Map.of()));
+	}
+
 	@Test
 	void aBusyUpdateWaitsIsSaidOnceAndFullAutonomyCanNotLoopWithoutBound() {
 		var b = new Updates.BusyUpdates();
 		var other = new SiteBusy.Held(SiteBusy.Kind.OTHER, null, null, false);
-		var waits = new SiteBusy.Held(SiteBusy.Kind.WAITS, null, null, false, SiteBusy.Busy.REMOVAL_IN_PROGRESS, "g", "group", null);
 		int timed = 0, sayings = 0;
 		// Full autonomy: each release re-applies, and each re-apply is refused again
 		for (int i = 0; i < 50; i++) {
@@ -297,24 +300,53 @@ class T4RDTest {
 		assertEquals(Updates.BusyUpdates.MAX_TRIES, timed, "a bounded number of timed tries");
 		assertEquals(1, sayings, "said once");
 		assertTrue(b.waiting("st_1@2"), "past the bound it waits (asked in the inbox)");
-		assertEquals(Updates.BusyUpdates.REMOVAL_MS, b.refused("st_2@3", waits, "why").retryAfterMs());
-		assertTrue(b.releaseWaits());
-		assertFalse(b.waiting("st_2@3"));
 		b.forget("st_1@2");
 		assertFalse(b.waiting("st_1@2"));
 		var again = b.refused("st_1@2", other, "why");
 		assertEquals(Updates.BusyUpdates.SOON_MS, again.retryAfterMs(), "the player's ask counts from the start");
 		assertTrue(again.say(), "and is said again: never silence after the player's ask");
-		// a typed wait for another change is not released by a removal's end; an untyped busy (its cause unknown) is
-		var op = new SiteBusy.Held(SiteBusy.Kind.OTHER, null, null, false, SiteBusy.Busy.OPERATION_IN_PROGRESS, "tx", "t", null);
+		// a wait behind a removal is timed too (a blocker that stops fires no event)
+		var waits = SiteBusy.of(refused(busy(Busy.Kind.REMOVAL_IN_PROGRESS, "rg_1", "region", null)));
+		assertEquals(Updates.BusyUpdates.REMOVAL_MS, b.refused("st_2@3", waits, "why").retryAfterMs());
+	}
+
+	@Test
+	void aBusyUpdateIsReleasedOnlyByItsOwnBlockersEnd() {
 		var c = new Updates.BusyUpdates();
-		c.refused("st_3@2", op, "why");
-		assertFalse(c.releaseWaits(), "another change's wait is not released by a removal's end");
-		assertTrue(c.waiting("st_3@2"));
-		c.refused("st_1@2", other, "why");
-		assertTrue(c.releaseWaits());
-		assertFalse(c.waiting("st_1@2"), "untyped: released by a removal's end");
-		assertTrue(c.waiting("st_3@2"));
+		// typed: Architect names the blocker as its event does (Busy.finishedBy)
+		c.refused("st_r@2", SiteBusy.of(refused(busy(Busy.Kind.REMOVAL_IN_PROGRESS, "rg_1", "region", null))), "why");
+		c.refused("st_s@2", SiteBusy.of(refused(busy(Busy.Kind.WAITING_BEHIND, "grp_1/east", "stage", null))), "why");
+		c.refused("st_o@2", SiteBusy.of(refused(busy(Busy.Kind.OPERATION_IN_PROGRESS, "tx-1", "crate.settle", null))), "why");
+		assertFalse(c.releaseWaits(finished("region", "rg_2", null)), "another region's end");
+		assertFalse(c.releaseWaits(finished("group", "rg_1", null)), "a group's end with the region's id is not the region's");
+		assertFalse(c.releaseWaits(finished("group", "grp_1", null)), "the whole group's end is not its stage's");
+		assertTrue(c.waiting("st_r@2") && c.waiting("st_s@2"));
+		assertTrue(c.releaseWaits(finished("region", "rg_1", null)));
+		assertFalse(c.waiting("st_r@2"));
+		assertTrue(c.releaseWaits(finished("group", "grp_1", "east")));
+		assertFalse(c.waiting("st_s@2"));
+		assertFalse(c.releaseWaits(finished("site", "tx-1", null)), "another change is never released by a removal's end");
+		assertTrue(c.waiting("st_o@2"));
+		// a blocker Steward can't name (a detail token, or untyped): any removal's end may be it
+		c.refused("st_t@2", SiteBusy.of(new Refusal(Reason.SITE_BUSY, "x", List.of(), "removal_in_progress:grp_3")), "why");
+		c.refused("st_u@2", new SiteBusy.Held(SiteBusy.Kind.OTHER, null, null, false), "why");
+		assertTrue(c.releaseWaits(finished("site", "anything", null)));
+		assertFalse(c.waiting("st_t@2") || c.waiting("st_u@2"));
+		assertTrue(c.waiting("st_o@2"));
+		assertFalse(c.releaseWaits(null));
+	}
+
+	@Test
+	void aHeldCancelIsReadAgainABoundedNumberOfTimesThenSaidOnce() {
+		int rechecks = 0, sayings = 0;
+		for (int i = 0; i < 100; i++) {
+			var step = SettlementRunner.heldStep(i);
+			if (step == SettlementRunner.HeldStep.RECHECK) rechecks++;
+			if (step == SettlementRunner.HeldStep.SAY_ONCE) sayings++;
+		}
+		assertEquals(SettlementRunner.HELD_RECHECKS, rechecks, "bounded: the event is never the only way out, nor polled without end");
+		assertEquals(1, sayings);
+		assertEquals(SettlementRunner.HeldStep.RECHECK, SettlementRunner.heldStep(0), "the first held answer is read again");
 	}
 
 	@Test

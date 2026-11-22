@@ -330,16 +330,18 @@ public final class Updates {
 		scanPending = true;
 	}
 
-	/** (T4RD-S) A removal finished ({@code REMOVAL_FINISHED}, any): updates that waited behind a removal are looked at again. Server thread. */
-	public static void removalFinished() {
-		if (BUSY.releaseWaits()) scanPending = true;
+	/** (T4RD-S) A removal finished ({@code REMOVAL_FINISHED}): updates that waited behind that removal are looked at again. Server thread. */
+	public static void removalFinished(dev.larattalabs.architect.api.RemovalFinished f) {
+		if (BUSY.releaseWaits(f)) scanPending = true;
 	}
 
 	/**
 	 * (T4RD-S) The updates Architect refused as busy this session, keyed per version ({@code siteId@version}). An entry waits (not applied by itself) until
-	 * it is released: a wait behind a removal by any {@code REMOVAL_FINISHED} or its timer, another change's by its timer. Each version is released by
-	 * timer at most {@link #MAX_TRIES} times; past that it stays waiting (asked in the inbox) until the player asks or a removal finishes, so Full
-	 * autonomy never loops. Said once per version. Server thread; pure but for its own maps.
+	 * it is released: a wait behind a removal by that removal's {@code REMOVAL_FINISHED} ({@code Busy.finishedBy}: Architect names the blocker as its
+	 * event does) or its timer, another change's by its timer. A blocker that stops without finishing fires no event, so every wait has the timer, and a
+	 * timer's release only asks again (Architect refuses again while it is still busy): it never counts as finished. Each version is released by timer
+	 * at most {@link #MAX_TRIES} times; past that it stays waiting (asked in the inbox) until the player asks or its removal finishes, so Full autonomy
+	 * never loops. Said once per version (again after the player's ask). Server thread; pure but for its own maps.
 	 */
 	static final class BusyUpdates {
 		/** At most this many timed re-tries of one version per session. */
@@ -356,7 +358,7 @@ public final class Updates {
 		record Step(boolean say, long retryAfterMs) {
 		}
 
-		private record Wait(boolean behindRemoval, boolean untyped, String why) {
+		private record Wait(SiteBusy.Held held, String why) {
 		}
 
 		private final Map<String, Wait> waiting = new java.util.HashMap<>();
@@ -390,7 +392,7 @@ public final class Updates {
 
 		/** A version refused as busy: it waits; said the first time; a timed release while it has tries left. */
 		Step refused(String key, SiteBusy.Held h, String why) {
-			waiting.put(key, new Wait(h.waits(), h.busy() == null, why));
+			waiting.put(key, new Wait(h, why));
 			boolean first = said.add(key);
 			int n = tries.merge(key, 1, Integer::sum);
 			long after = n > MAX_TRIES ? -1 : h.waits() ? REMOVAL_MS : SOON_MS;
@@ -412,11 +414,12 @@ public final class Updates {
 		}
 
 		/**
-		 * A removal finished: every version waiting behind a removal may be applied again, and an untyped busy one too (its cause unknown: the async
-		 * delta path drops the detail, so a removal's end may be what it waited for). Whether any was.
+		 * A removal finished: every version waiting behind that removal ({@link SiteBusy.Held#finishedBy}) may be applied again. A wait whose blocker
+		 * Steward can't name (a detail token or an untyped busy: the delta paths carry no blocker kind) is released by any removal's end, as it may be
+		 * what it waited for; a typed wait for another change never is. Whether any was.
 		 */
-		boolean releaseWaits() {
-			return waiting.values().removeIf(w -> w.behindRemoval() || w.untyped());
+		boolean releaseWaits(dev.larattalabs.architect.api.@org.jspecify.annotations.Nullable RemovalFinished f) {
+			return waiting.values().removeIf(w -> w.held().typed() != null ? w.held().finishedBy(f) : w.held().waits() || w.held().busy() == null);
 		}
 
 		/** The player asked for it: tried now, counted and said from the start. */

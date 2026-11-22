@@ -78,7 +78,7 @@ public final class RemovalEnds {
 						return;
 					}
 					srv2.execute(() -> {
-						Updates.removalFinished();
+						Updates.removalFinished(e);
 						handle(srv2, end, voice(srv2));
 					});
 			});

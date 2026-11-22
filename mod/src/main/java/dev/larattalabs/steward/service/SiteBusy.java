@@ -55,8 +55,28 @@ public final class SiteBusy {
 	 * records didn't load (T4 change 7).
 	 */
 	public record Held(Kind kind, @Nullable Integer chunkX, @Nullable Integer chunkZ, boolean recordsUnreadable, @Nullable Busy busy, @Nullable String blockingId,
-		@Nullable String blockingKind, @Nullable String blockingOwner) {
+		@Nullable String blockingKind, @Nullable String blockingOwner, dev.larattalabs.architect.api.@Nullable Busy typed) {
 		static final Held NONE = new Held(Kind.NONE, null, null, false);
+
+		/** Without Architect's typed busy (read from a detail token, or held(..)). */
+		public Held(Kind kind, @Nullable Integer chunkX, @Nullable Integer chunkZ, boolean recordsUnreadable, @Nullable Busy busy, @Nullable String blockingId,
+			@Nullable String blockingKind, @Nullable String blockingOwner) {
+			this(kind, chunkX, chunkZ, recordsUnreadable, busy, blockingId, blockingKind, blockingOwner, null);
+		}
+
+		/**
+		 * (T4RD-S, Architect's release fix round) Whether this removal's end is what the wait was for: Architect's own {@code Busy.finishedBy} (its blocker
+		 * named exactly as the event names it; always false for a kind retried by time). False without the typed busy (a detail token alone can't name
+		 * the blocker's kind): such a wait is released by time.
+		 */
+		public boolean finishedBy(dev.larattalabs.architect.api.@Nullable RemovalFinished f) {
+			if (typed == null || f == null) return false;
+			try {
+				return typed.finishedBy(f);
+			} catch (LinkageError e) {
+				return false;
+			}
+		}
 
 		/** A hold with no typed busy cause (T4S-PRE's shape). */
 		public Held(Kind kind, @Nullable Integer chunkX, @Nullable Integer chunkZ, boolean recordsUnreadable) {
@@ -106,9 +126,9 @@ public final class SiteBusy {
 			Busy k = busyOf(b.kind().name());
 			if (k == Busy.HELD_DECIDED) {
 				Held h = of(r.reason(), DECIDED_TOKEN, r.getMessage());
-				return new Held(Kind.DECIDED, h.chunkX(), h.chunkZ(), h.recordsUnreadable(), k, b.blockingId(), b.blockingKind(), b.blockingOwner());
+				return new Held(Kind.DECIDED, h.chunkX(), h.chunkZ(), h.recordsUnreadable(), k, b.blockingId(), b.blockingKind(), b.blockingOwner(), b);
 			}
-			return new Held(kindOf(k), null, null, false, k, b.blockingId(), b.blockingKind(), b.blockingOwner());
+			return new Held(kindOf(k), null, null, false, k, b.blockingId(), b.blockingKind(), b.blockingOwner(), b);
 		}
 		return of(r.reason(), r.detail(), r.getMessage());
 	}
