@@ -470,3 +470,33 @@ test('(E2E-DISK-4) the kept bounds come from STEWARD_KEEP_TMP_HOURS and STEWARD_
   const src = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'tools', 'e2e.mjs'), 'utf8');
   assert.match(src, /sweepStale\(\{ root: path\.join\(RAM_TMP, 'steward'\), \.\.\.kept/, 'e2e.mjs passes the bounds to its sweep');
 });
+
+// ------------------------------------------------------------------ E2E-DISK-5: the game dir's sidecar-<hash> isn't a directory
+
+for (const kind of ['a plain file', 'a dangling symlink', 'a symlink to a dir']) {
+  test(`(E2E-DISK-5) sidecar-<hash> is ${kind}: the run's fallback is removed, the link never dangles, and the non-dir is left as it is`, () => {
+    const game = tmp('tmpown-game-'), root = tmp('tmpown-ram-'), elsewhere = tmp('tmpown-else-');
+    const link = path.join(game, 'architect', 'sidecar-data');
+    const primary = ramSidecarData(game, {}, root).dir; // the game dir's sidecar-<hash>
+    fs.rmdirSync(primary);
+    if (kind === 'a plain file') fs.writeFileSync(primary, 'not a dir');
+    else if (kind === 'a dangling symlink') fs.symlinkSync(path.join(elsewhere, 'gone'), primary);
+    else { fs.writeFileSync(path.join(elsewhere, 'theirs'), '1'); fs.symlinkSync(elsewhere, primary); }
+    const before = kind === 'a plain file' ? fs.readFileSync(primary, 'utf8') : fs.readlinkSync(primary);
+    const r = ramSidecarData(game, {}, root, { fresh: true, own: true });
+    assert.notEqual(r.dir, primary, 'a fallback of its own');
+    fs.writeFileSync(path.join(r.dir, 'designs.json'), 'x');
+    assert.equal(removeOwned(r.dir, { link }), 'removed');
+    assert.ok(fs.existsSync(link), 'the link leads to a directory');
+    assert.ok(fs.statSync(link).isDirectory());
+    assert.equal(fs.readlinkSync(link), r.dir, 'it stays on the fallback, made again');
+    assert.deepEqual(fs.readdirSync(r.dir), [], 'the run\'s data is gone, no marker left');
+    assert.equal(kind === 'a plain file' ? fs.readFileSync(primary, 'utf8') : fs.readlinkSync(primary), before, 'the non-dir untouched');
+    if (kind === 'a symlink to a dir') assert.deepEqual(fs.readdirSync(elsewhere), ['theirs']);
+    // the next fresh run takes a fallback again and leaves the made-again one to the empty-fallback sweep
+    const n = ramSidecarData(game, {}, root, { fresh: true, own: true });
+    assert.notEqual(n.dir, primary);
+    assert.equal(removeOwned(n.dir, { link }), 'removed');
+    assert.ok(fs.statSync(link).isDirectory());
+  });
+}
