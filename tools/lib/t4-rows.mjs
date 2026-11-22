@@ -44,7 +44,9 @@ export function afterDecision(states) {
 
 /** What a held, decided undo said, or a stop it must never say after a restart past the decision. -> { ok, why }. */
 export function heldWords(text) {
-  const t = String(text ?? '');
+  // (T4R-PIN) only what was said to the player (the client log's chat lines): Architect's and Steward's own log lines name txns (`Txn event:
+  // tx-9 ...`) and are never said
+  const t = String(text ?? '').split('\n').filter((l) => l.includes('[CHAT]')).join('\n');
   const stop = /Undo stopped|could not be taken up|again once it is clear|held\(|tx-\d+/.exec(t);
   if (stop) return { ok: false, why: `a stop or Architect's text after the decision: "${stop[0]}"` };
   return { ok: true, why: /Undo under way/.test(t) ? 'said as under way' : 'no stop said' };

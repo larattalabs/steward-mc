@@ -34,11 +34,21 @@ test('RVU1/RVU2 past the decision finish the removal; a revision read PLACED aga
   assert.equal(afterDecision([]).ok, false);
 });
 
+const chat = (t) => `[15:29:56] [Render thread/INFO] (Minecraft) [System] [CHAT] ${t}`;
+
 test('after the decision the steward never says a stop or Architect\'s text', () => {
-  assert.equal(heldWords('Undo under way: it finishes by itself when chunk 3, -4 loads. Nothing more to do.').ok, true);
-  assert.equal(heldWords('Undone: the town\'s change is taken up').ok, true);
+  assert.equal(heldWords(chat('Undo under way: it finishes by itself when chunk 3, -4 loads. Nothing more to do.')).ok, true);
+  assert.equal(heldWords(chat('Undone: the town\'s change is taken up')).ok, true);
   for (const bad of ['Undo stopped: x', 'could not be taken up just now', 'Run /steward undo s again once it is clear.', 'held(decided) tx-7: chunk 3,-4'])
-    assert.equal(heldWords(bad).ok, false, bad);
+    assert.equal(heldWords(chat(bad)).ok, false, bad);
+});
+
+test('the words are what was said in chat, never Architect\'s or Steward\'s own log lines', () => {
+  // (T4R-PIN, the 367e40ce run) Architect's INFO line names its txn; nothing was said
+  const log = ['[15:29:56] [Server thread/INFO] (architect) Txn event: tx-9 removal_finished (replayed) {"kind":"group"}',
+    '[15:29:57] [Server thread/INFO] (steward_mc) set_1: the undo of group g5 is decided and held: held(decided) tx-9', chat('Undone: the town\'s change is taken up')].join('\n');
+  assert.equal(heldWords(log).ok, true);
+  assert.equal(heldWords(`${log}\n${chat('Undo stopped: x')}`).ok, false);
 });
 
 test('the unchanged re-undo: NOT_ALLOWED as today, or the replayed answer on a txn removal', () => {

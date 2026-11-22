@@ -2,9 +2,16 @@
 
 Strict tier. Branch `t4r-pin` (cut from main bc60f501): `t4s-pre` merged, then T4RD-S (LEFTOVERS rows T4S-PRE and T4RD-S), against Architect
 `slice/T4R`. **It builds only with `ARCHITECT_JAR`** (it uses `Busy`, `OwedPart`, `RemovalFinished`, `RemovalStopCause.WAITING_BEHIND`) until
-`architect_version` moves to the release. The compile jar is slice/T4R 68d2b065 (`-PallowNoSidecar jar`, in `_work/architect-mc-t4r-steward-rc`).
-The coordinator held in-game runs and the GPT review for the post-fix head of Architect's current round (owedParts on grouped futures and revision
-aggregation, a region's Busy or a group finish event, a group's own extraction, DevStart gating).
+`architect_version` moves to the release. The RC jar is slice/T4R **367e40ce** (Architect's release fix round), built with the sidecar bundle
+(`sidecar` `npm run build`, then `./gradlew --offline --no-daemon jar`; `architect_mc-0.90.0.jar`, sha256 `2419d017…`) in
+`_work/architect-mc-t4r-steward-rc`. The first pass compiled against 68d2b065 (pre-fix) only.
+
+**367e40ce's changes, taken:** a whole region's `Busy` names the region as its REMOVAL_FINISHED does, and `Busy.finishedBy(RemovalFinished)` is
+Architect's own match. Updates now releases a busy wait only when `finishedBy` says its blocker ended, so another removal's end no longer
+releases it; a detail-token or untyped wait, which carries no blocker kind, still goes on any removal's end. owedParts is now filled on group,
+stage, region and revision futures, which `Undo.growth` and `takeUpEmpty` already read, so no code changed. A blocker that stops fires no event,
+so every wait is bounded: Updates by its timer (a timer's release only asks again, never counts as finished), and a held cancel by a re-read
+every 60 s, 10 times, then said once (`SettlementRunner.heldStep`). The undo held notes were already re-read by the 10 s growth sweep.
 
 ## What was built
 - **Merge** (0b15da97): conflicts in RefusalWords, SettlementRunner and e2e.mjs resolved toward main plus T4S-PRE; the fake's T4S-PRE site-group
@@ -54,7 +61,7 @@ aggregation, a region's Busy or a group finish event, a group's own extraction, 
 - **B10 (old saves):** no save format change. NOTE entries are an existing kind, and `SaveCompatTest` passes.
 
 ## Tests and red-again
-- T4RDTest: 14 rows (one proves a busy group undo never reads absence as gone without txn removals). T4SeamTest's held(other) row now expects the busy words. Two RemovalStopsTest rows were red against the RC before the
+- T4RDTest: 16 rows (finishedBy release, the held cancel's bound) (one proves a busy group undo never reads absence as gone without txn removals). T4SeamTest's held(other) row now expects the busy words. Two RemovalStopsTest rows were red against the RC before the
   WAITING_BEHIND words. npm `test/owed-cargo.test.mjs`: 4.
 - Red-again (`artifacts/t4r-pin/redagain.log`, each fix reverted and red, then restored):
   - kindOf, typedToken;
@@ -64,6 +71,7 @@ aggregation, a region's Busy or a group finish event, a group's own extraction, 
   - the owed reason and recipient filters;
   - the sweep's once;
   - the WAITING_BEHIND tail;
+  - the finishedBy match and the typed busy kept, the held cancel's bound (on 367e40ce);
   - the 7b ground, guard, placer-filter and restart judges.
 
 ## T4S-PRE's "at T4c" list
