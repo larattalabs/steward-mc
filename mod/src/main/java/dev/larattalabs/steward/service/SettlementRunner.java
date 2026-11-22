@@ -4222,7 +4222,7 @@ public final class SettlementRunner {
 		try {
 			String sha = dev.larattalabs.steward.gateway.PPlan.artifactOf(vPlanId);
 			if (sha != null) pin(sha);
-			else ArchitectApi.get().regions().planByKey(settlement.owner(), opKey(growth() && growKey != null ? growKey : "vplan"));
+			else ArchitectAccess.api().regions().planByKey(settlement.owner(), opKey(growth() && growKey != null ? growKey : "vplan"));
 			Steward.LOGGER.info("resume {}: plan {} used again (kept from Architect's sweep)", settlement.id(), vPlanId);
 		} catch (RuntimeException | LinkageError e) {
 			Steward.LOGGER.warn("could not use the plan {} of {} again", vPlanId, settlement.id(), e);
@@ -4349,7 +4349,7 @@ public final class SettlementRunner {
 	private void adoptGrowth(String regionId) {
 		// taken already (a late answer after the lookup found it): not twice
 		if (regionId.equals(vRegionId)) return;
-		var rv = ArchitectApi.get().regions().get(regionId).flatMap(v -> Growths.byPlan(v, vPlanId));
+		var rv = ArchitectAccess.api().regions().get(regionId).flatMap(v -> Growths.byPlan(v, vPlanId));
 		if (rv.isPresent()) {
 			growRid = rv.get().rid();
 			growPosition = rv.get().position();
@@ -4364,7 +4364,7 @@ public final class SettlementRunner {
 
 	/** A growth realised under its keys: the town region, when the revision realised from this build's plan is in it. */
 	private java.util.Optional<String> foundGrowth() {
-		var regions = ArchitectApi.get().regions();
+		var regions = ArchitectAccess.api().regions();
 		return regions.realiseByKey(settlement.owner(), opKey("vgrowrealise"))
 			.or(() -> regions.realiseByKey(settlement.owner(), opKey("vgrowrealise3")))
 			.or(() -> growRegion == null ? java.util.Optional.empty() : regions.get(growRegion))
@@ -4715,7 +4715,7 @@ public final class SettlementRunner {
 	 * the revision has ended, its own sites are logged under {@code revision:<region>:<rid>} and the build ends. One that placed nothing is taken up.
 	 */
 	private void watchGrowth() {
-		var regions = ArchitectApi.get().regions();
+		var regions = ArchitectAccess.api().regions();
 		var v = regions.get(vRegionId);
 		if (v.isEmpty()) return;
 		var rv = Growths.revision(v.get(), growRid).or(() -> Growths.byPlan(v.get(), vPlanId));

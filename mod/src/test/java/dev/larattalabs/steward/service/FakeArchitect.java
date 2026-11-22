@@ -62,7 +62,8 @@ final class FakeArchitect {
 		int position;
 		String state;
 		final List<String> sites;
-		final String planId;
+		/** The plan it was realised from ({@code plan_<rid>}, or (FENCE-TESTS-4) a growth's plan). */
+		String planId;
 		/** (slice DRS) What it waits for ({@code RevisionView.waiting}), when a test gives it. */
 		String waiting;
 		/** (RVC) Its typed stop cause ({@code RevisionView.removalStopCause}); Architect makes it OTHER when waiting with none, null when not. */
@@ -234,8 +235,13 @@ final class FakeArchitect {
 	final List<dev.larattalabs.architect.api.RealiseRequest> realises = new ArrayList<>();
 	/** (FENCE-TESTS-4) The plans {@code planByKey} finds, by their key; none (empty) for a key not given. */
 	final Map<String, dev.larattalabs.architect.api.RegionPlan> plansByKey = new LinkedHashMap<>();
-	/** (FENCE-TESTS-4) The region a growth's realise from materials puts its lots' sites in. */
+	/** (FENCE-TESTS-4) The region a realise from materials puts its lots' sites in, when no {@link #growthOf} is given. */
 	static final String GROWN = "rg_grown";
+	/**
+	 * (FENCE-TESTS-4) The town a growth's realise revises, when a test gives it: the realise adds a revision of the request's plan to it (PLACING, its
+	 * sites), found by the realise key and by its plan, and answers the town's id, as Architect's does.
+	 */
+	String growthOf;
 	/**
 	 * (CRASH-T) Architect's realise of a town from materials ({@code realiseApproved} with this set): applied when it is sent, as Architect's is (its
 	 * answer, per {@link #realiseAnswer}, may still be lost or held: APPLY answers, HOLD leaves it unanswered until {@link #complete}, APPLY_THEN_LOSE
@@ -496,15 +502,23 @@ final class FakeArchitect {
 				for (var e : bill.entrySet())
 					if (e.getValue() > r.maxBill().getOrDefault(e.getKey(), 0))
 						return CompletableFuture.failedFuture(new ArchitectRefused(Reason.BILL_CAP, "the bill at put-down is past its maxBill (" + e.getKey() + ")"));
+			String into = growthOf != null ? growthOf : GROWN;
 			for (String lot : new java.util.TreeSet<>(r.lotEntries().keySet())) {
 				String sid = "s_" + lot;
-				site(sid, realiseOwner, GROWN).state = State.BUILDING;
+				site(sid, realiseOwner, into).state = State.BUILDING;
 				ledger.bills.put(sid, Map.copyOf(putDown.getOrDefault(lot, Map.of())));
 				if (!ledger.build(this, sid)) throw new IllegalStateException("FakeArchitect: the stockpile is short for " + lot + " (give the test more stock)");
 			}
 		}
-		if (r.opKey() != null) realisedByKey.put(r.opKey(), GROWN);
-		return answerRealise(GROWN);
+		String id = GROWN;
+		if (growthOf != null) {
+			Region town = regions.get(growthOf);
+			int rid = town.revisions.size() + 1;
+			town.rev(rid, town.position + 1, "PLACING", r.lotEntries().keySet().stream().sorted().map(l -> "s_" + l).toArray(String[]::new)).planId = r.planId();
+			id = growthOf;
+		}
+		if (r.opKey() != null) realisedByKey.put(r.opKey(), id);
+		return answerRealise(id);
 	}
 
 	private CompletableFuture<String> answerRealise(String id) {

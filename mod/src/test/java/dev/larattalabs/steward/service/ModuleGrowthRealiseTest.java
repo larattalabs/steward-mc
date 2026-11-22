@@ -65,10 +65,8 @@ class ModuleGrowthRealiseTest {
 		var f = new HashSet<>(a.features);
 		f.add(SettlementRunner.MAX_BILL);
 		a.features = Set.copyOf(f);
-		// the town, built from materials and fully built: it may grow from its stockpile
-		var town = a.region(TOWN, "owner");
-		town.fromMaterials = true;
-		town.built = true;
+		// a growth's realise revises the town (a revision of its plan, found by its key and its plan)
+		a.growthOf = TOWN;
 		a.install();
 		// no server: a world that builds from materials, the town's stockpile standing, no player online
 		ArchitectAccess.useWorldForTest(true, true);
@@ -120,6 +118,12 @@ class ModuleGrowthRealiseTest {
 		store.save(settlementsFile);
 		Settlements.useForTest(store, settlementsFile);
 		a.realiseOwner = saved.settlement().owner();
+		// the town, the settlement's, built from materials and fully built: it may grow from its stockpile
+		if (!a.regions.containsKey(TOWN)) {
+			var town = a.region(TOWN, saved.settlement().owner());
+			town.fromMaterials = true;
+			town.built = true;
+		}
 		// the growth plan, found by its key
 		a.plansByKey.put("steward." + b.buildId() + ".vgrow", new RegionPlan(VPLAN, "prog", "psha", "ir", "survey", 1L, List.of(SPEC), List.of("s1"), Map.of(),
 			null, List.of()));
@@ -128,8 +132,19 @@ class ModuleGrowthRealiseTest {
 		return r;
 	}
 
-	/** The world stops and starts again: a new session, no runner, the queue gone, the build read back from its files alone and restored. */
+	/**
+	 * The world stops and starts again: a new session, no runner, the queue gone, the build read back from its files alone, restored and resumed by
+	 * the production resume ({@code resync}: a growth placing is found by its realise key and plan, or realised again).
+	 */
 	void crash() throws IOException {
+		crash(true);
+	}
+
+	/**
+	 * {@code resume} false: restored but not resumed, for a build stopped (CANCELLING) on disk, whose resume stops what it asked by its keys (the
+	 * designs' cancel by key, which FakeArchitect doesn't model); the test then drives the placing step itself.
+	 */
+	void crash(boolean resume) throws IOException {
 		SettlementRunner.clearForTest();
 		Session.nextForTest();
 		a.serverQueue.clear();
@@ -142,6 +157,23 @@ class ModuleGrowthRealiseTest {
 		saved = disk.all().stream().filter(x -> x.settlementId().equals(saved.settlementId())).findFirst().orElseThrow(() -> new AssertionError("the build is not on disk"));
 		r = SettlementRunner.restoredForTest(saved);
 		assertTrue(r.aliveForTest());
+		if (!resume) return;
+		try {
+			r.resyncForTest();
+		} catch (RuntimeException | LinkageError e) {
+			tails.add(e);
+		}
+		drain();
+	}
+
+	/** (GPT P3) The order the shared store holds at the moment the steward says the save failed (before the cancel saves anything again). */
+	final List<ModuleOrder> sharedAtUnsaved = new ArrayList<>();
+
+	LogCapture unsavedWatch() {
+		sharedAtUnsaved.clear();
+		LogCapture log = LogCapture.open();
+		log.onLine = l -> { if (l.startsWith("settlement: ") && l.contains("could not be saved")) sharedAtUnsaved.add(shared()); };
+		return log;
 	}
 
 	Object call(String method, Class<?>[] types, Object... args) {
@@ -352,7 +384,8 @@ class ModuleGrowthRealiseTest {
 			assertTrue(world().isEmpty());
 			conserved();
 			// the crash: the build as saved never realises on its own
-			crash();
+			assertEquals(Pipeline.Phase.CANCELLING, disk().state().phase(), "stopped as saved");
+			crash(false);
 			place();
 			assertEquals(1, a.realises.size(), t + ": realised after the restart: " + a.calls);
 			conserved();
@@ -376,12 +409,14 @@ class ModuleGrowthRealiseTest {
 				DurableWrite.FAIL_NEXT.add(fail);
 				for (int i = 0; i < 20; i++) DurableWrite.FAIL_NEXT.add(DurableWrite.TestFail.BEFORE_RENAME);
 			};
-			try (LogCapture log = LogCapture.open()) {
+			try (LogCapture log = unsavedWatch()) {
 				place();
 				assertFalse(ComposedRunnerOrderTest.said(log, HOLD_WORDS), fail + ": put to the player unsaved: " + log.lines);
 				assertTrue(ComposedRunnerOrderTest.said(log, "could not be saved"), fail + ": " + log.lines + " " + tails());
 			}
 			a.onCall = c -> {};
+			assertEquals(1, sharedAtUnsaved.size(), fail + ": said once");
+			assertNull(sharedAtUnsaved.get(0).held(), fail + ": the unsaved hold in the shared store when the save failed");
 			assertNull(order().held(), fail + ": the unsaved hold kept in the runner");
 			assertNull(shared().held(), fail + ": the unsaved hold kept in the shared store (another build's save would write it)");
 			assertNotEquals(Pipeline.Phase.AWAITING_PLACEMENT_APPROVAL, phase(), fail + ": waiting on an unsaved hold");
@@ -410,11 +445,13 @@ class ModuleGrowthRealiseTest {
 				DurableWrite.FAIL_NEXT.add(fail);
 				for (int i = 0; i < 20; i++) DurableWrite.FAIL_NEXT.add(DurableWrite.TestFail.BEFORE_RENAME);
 			};
-			try (LogCapture log = LogCapture.open()) {
+			try (LogCapture log = unsavedWatch()) {
 				place();
 				assertTrue(ComposedRunnerOrderTest.said(log, "could not be saved"), fail + ": " + log.lines + " " + tails());
 			}
 			a.onCall = c -> {};
+			assertEquals(1, sharedAtUnsaved.size(), fail + ": said once");
+			assertNotNull(sharedAtUnsaved.get(0).held(), fail + ": the unsaved clear in the shared store when the save failed");
 			assertEquals(0, a.realises.size(), fail + ": realised on an unsaved clear: " + a.calls);
 			assertNull(field("quoteCleared"), fail + ": the quote counted as cleared");
 			assertNotNull(order().held(), fail + ": the unsaved clear kept in the runner");
@@ -449,11 +486,13 @@ class ModuleGrowthRealiseTest {
 			a.putDown.put(LOT, Map.of("minecraft:dirt", 140));
 			a.quote = quote(120, true);
 			a.onCall = c -> { if (c.startsWith("regions.realise ")) DurableWrite.FAIL_NEXT.add(fail); };
-			try (LogCapture log = LogCapture.open()) {
+			try (LogCapture log = unsavedWatch()) {
 				place();
 				assertTrue(ComposedRunnerOrderTest.said(log, "that could not be saved, so I won't ask again or build it"), fail + ": " + log.lines + " " + tails());
 			}
 			a.onCall = c -> {};
+			assertEquals(1, sharedAtUnsaved.size(), fail + ": said once");
+			assertFalse(sharedAtUnsaved.get(0).refusedAtPutDown(), fail + ": the unsaved refusal in the shared store when the save failed");
 			assertEquals(1, a.realises.size(), fail + " " + a.calls);
 			assertFalse(order().refusedAtPutDown(), fail + ": the unsaved refusal kept in the runner");
 			assertFalse(shared().refusedAtPutDown(), fail + ": the unsaved refusal kept in the shared store");
@@ -461,7 +500,8 @@ class ModuleGrowthRealiseTest {
 			assertNotEquals(Pipeline.Phase.PLACING, phase(), fail + ": still placing");
 			conserved();
 			// the crash: the build as its file holds it never realises on its own
-			crash();
+			assertEquals(Pipeline.Phase.CANCELLING, disk().state().phase(), "stopped as saved");
+			crash(false);
 			place();
 			assertEquals(1, a.realises.size(), fail + ": realised on its own after an unsaved refusal: " + a.calls);
 			conserved();
@@ -485,27 +525,34 @@ class ModuleGrowthRealiseTest {
 		assertEquals(0, a.realises.size());
 		conserved();
 
-		// (2) the approval: the held bill becomes the bound, saved before PLACING; the crash right after it finds PLACING under the 125 bound
+		// (2) the approval: the held bill becomes the bound, saved before PLACING; its quote is in flight when the world stops, so the crash finds
+		// PLACING under the 125 bound, nothing realised
 		a.quoteHold = true;
 		assertTrue(approve().startsWith("Approved"), tails());
 		assertEquals(Pipeline.Phase.PLACING, disk().state().phase());
 		assertEquals(125, disk().moduleOrders().get(LOT).bound().get("minecraft:dirt").getAsInt(), "the approved bill is the bound on disk");
 		assertNull(disk().moduleOrders().get(LOT).held());
-		crash();
-		a.quoteHold = false;
-		assertEquals(0, a.realises.size(), "realised before its own quote: " + a.calls);
+		assertEquals(0, a.realises.size(), "realised before its quote answered: " + a.calls);
 		conserved();
 
-		// (3) the resume quotes again (exact, within the new bound): cleared, then realised under the approved 125 as maxBill; its answer is lost to the
-		// crash, so the resume finds the realise by its key and never sends a second that draws
+		// (3) the resume quotes again (exact, within the new bound): cleared, then realised under the approved 125 as maxBill; that answer is lost to
+		// the next crash
+		a.quoteHold = false;
 		a.quote = quote(120, true);
-		place();
-		assertEquals(1, a.realises.size(), a.calls + " " + tails());
+		crash();
+		assertEquals(1, a.realises.size(), "the resume realises once: " + a.calls + " " + tails());
 		assertEquals(Map.of("minecraft:dirt", 125), a.realises.get(0).maxBill());
 		assertEquals(Map.of("minecraft:dirt", 120), world());
+		assertNull(field("vRegionId"), "its answer is in flight");
 		conserved();
+
+		// (4) the crash with the realise's answer lost: the resume finds the revision by its realise key and plan and takes it up, never a second realise
 		crash();
+		assertEquals(TOWN, field("vRegionId"), "the resume took the growth up: " + a.calls + " " + tails());
+		assertEquals(1, a.realises.size(), "realised again after the restart: " + a.calls);
+		assertEquals(TOWN, disk().vRegion(), "taken up and saved");
 		place();
+		assertEquals(1, a.realises.size(), "realised again: " + a.calls);
 		assertEquals(Map.of("minecraft:dirt", 120), world(), "drew twice after the restart: " + a.calls);
 		conserved();
 	}
