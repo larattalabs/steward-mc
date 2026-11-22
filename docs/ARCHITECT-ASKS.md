@@ -1894,3 +1894,16 @@ takes everything a module lot needs (plan/0 `lot.size`, `irrigate`, `field`, `ex
   retire it), so stage completion counts the tile once. A failing-first row on Architect's side (halt mid-forms, restart, the stage completes).
 - **Steward meanwhile:** the flow is nightly-only (Noah via parent, 11-21); every crash flow fails after 5 minutes without progress, naming the open
   queue items.
+
+### T4RD: Steward's review of T4R-D (player blocks owed, cascade ownership, admission; 2026-11-21, revisions 1-3)
+
+- **Review:** `steward-T4R-D-review.md` in the parent's notes folder. Verdict accept with changes, no design P1; sent to the coordinator.
+- **Asks, folded into revision 3:** A7 typed busy detail (`ArchitectRefused.busy()`: REMOVAL_IN_PROGRESS, WAITING_BEHIND, PLAYER_BLOCKS_RETURNING,
+  HELD_DECIDED, with the blocking removal's id, kind and owner), `RemovalStopCause.WAITING_BEHIND` and `removalWait()` on SiteGroup, RegionView and
+  RevisionView, the SITE_BUSY call list (§8.2); P2-6 the wait counter counts only stalled checks; A2 HELD_DECIDED; A3 dev views; A5 the site title in
+  the auto-collect line; Q1 a settlement's non-player-tracked blocks stay owed; Q8 `Sites.removalResult(kind, id)` with `revision:<region>#<rid>`;
+  four test rows.
+- **Asked on revision 3 (open):** confirm the up-front SITE_BUSY refusal comes before any pin, quote or charge; an action-bar hint when a player uses a
+  held cell; say what the one-block margin's popped attached blocks are (owed under D1, or vanilla drops of non-site blocks).
+- **Steward's side (T4RD-S, at the pin that brings T4R):** module-measure bar 7b reads `owedParts` (nothing on the ground) before crop_farm's smoke
+  carry; owed lines from `owedParts`; wording for the 12 "Not yet" paths by `busy()`; an update or revert refused as busy is not recorded as failed.
