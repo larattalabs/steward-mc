@@ -3168,7 +3168,7 @@ public final class SettlementRunner {
 			Steward.LOGGER.info("module {} realise {} under {}: maxBill {}", settlement.id(), vPlanId, key, cap);
 			request = request.withMaxBill(cap);
 		}
-		api.regions().realise(request).whenComplete((id, err) -> server.execute(() -> realised(id, err, session)));
+		api.regions().realise(request).whenComplete((id, err) -> ArchitectAccess.onServer(server, () -> realised(id, err, session)));
 	}
 
 	// ----------------------------------------------------------------- module lots (slice M3, docs/MODULES.md 4.2)
@@ -3213,7 +3213,7 @@ public final class SettlementRunner {
 				return false;
 			}
 		}
-		if (growRegion != null && ArchitectApi.get().regions().get(growRegion).map(Growths::fromMaterials).orElse(false)) {
+		if (growRegion != null && ArchitectAccess.api().regions().get(growRegion).map(Growths::fromMaterials).orElse(false)) {
 			Map<String, String> entries = new TreeMap<>();
 			moduleBindings.forEach((lot, b) -> { if (moduleOrders.containsKey(lot)) entries.put(lot, b.entryId()); });
 			if (!ModulePlacement.cleared(vPlanId, entries).equals(quoteCleared)) {
@@ -3291,7 +3291,7 @@ public final class SettlementRunner {
 	 * module build, Architect has no {@code maxBill}, or there is no bound (quoteModules refuses that before a realise).
 	 */
 	private java.util.@org.jspecify.annotations.Nullable Map<String, Integer> moduleCap() {
-		return realiseCap(true, moduleBuild(), moduleOrders, ArchitectApi.get().features().contains(MAX_BILL));
+		return realiseCap(true, moduleBuild(), moduleOrders, ArchitectAccess.api().features().contains(MAX_BILL));
 	}
 
 	/**
@@ -3701,21 +3701,21 @@ public final class SettlementRunner {
 
 	/** Whether this world builds regions from materials (Architect's RegionSurvival.on: the survival toggle on, the default game type not creative). */
 	private boolean regionMaterials() {
-		return dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false) && server.getDefaultGameType() != net.minecraft.world.level.GameType.CREATIVE;
+		return ArchitectAccess.regionMaterials(server);
 	}
 
 	/** (slice A2) Why a growth may not be realised now, or null: the mode gate again, and a town built from materials keeps its stockpile. */
 	private @org.jspecify.annotations.Nullable String growthRealiseRefusal() {
-		var town = growRegion == null ? java.util.Optional.<dev.larattalabs.architect.api.RegionView>empty() : ArchitectApi.get().regions().get(growRegion);
+		var town = growRegion == null ? java.util.Optional.<dev.larattalabs.architect.api.RegionView>empty() : ArchitectAccess.api().regions().get(growRegion);
 		if (town.isEmpty()) return null;
 		var v = town.get();
-		boolean world = dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false) && server.getDefaultGameType() != net.minecraft.world.level.GameType.CREATIVE;
+		boolean world = regionMaterials();
 		boolean built = v.build() != null && v.build().built();
 		if (Growths.fromMaterials(v) == world && Growths.fromMaterials(v) && !built)
 			return growingName() + " is being built from the stockpile again (an update or another change); it can grow once it's built. Start it again then.";
 		String no = Growths.modeRefusal(districtId == null ? settlement.name() : growingName(), Growths.fromMaterials(v), world, built, v.build() == null ? 0 : v.build().percent());
 		if (no != null) return no + " Start it again.";
-		if (Growths.fromMaterials(v) && Stockpiles.of(server, Settlements.store().get(settlement.id()).orElse(settlement)).isEmpty())
+		if (Growths.fromMaterials(v) && !ArchitectAccess.hasStockpile(server, Settlements.store().get(settlement.id()).orElse(settlement)))
 			return "the town's stockpile is gone, and a town built from materials grows from it. Start it again: a new one is made by the founding stone.";
 		return null;
 	}
