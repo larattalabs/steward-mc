@@ -10231,10 +10231,10 @@ let flowsAt = 0;
  * Names a flow; runFlows runs them in this order. `needs`: the earlier flows whose world this one builds on (districts needs the settlement proposals
  * describes), pulled into an --only run that picks this flow.
  */
-function flow(name, tags, fn, needs = []) {
+function flow(name, tags, fn, needs = [], { nightlyOnly = null } = {}) {
   if (flowsRan) throw new Error(`flow ${name} is named after runFlows (or inside a flow): it would never run`);
   for (const n of needs) if (!flows.some((f) => f.name === n)) throw new Error(`flow ${name} needs ${n}, which is not named before it`);
-  flows.push({ name, tags, fn, needs });
+  flows.push({ name, tags, fn, needs, nightlyOnly });
 }
 /** Runs the named flows (`flow` lines name each, for a rerun of what failed; a pulled-in one says which flow needs it). */
 async function runFlows() {
@@ -10325,6 +10325,15 @@ let planMemo = null;
 function planFlows() {
   if (planMemo) return planMemo;
   let why = exact ? new Map(exact.map((n) => [n, ''])) : pickFlows(flows, only);
+  // (B092-LEFT, Noah via parent 11-21) a nightly-only flow (a known upstream fault makes it fail at random) runs in the nightly (E2E_NIGHTLY=1) or
+  // when --only names it exactly; otherwise it is skipped with its reason, so a batch or slice run isn't failed by it
+  if (!exact && process.env.E2E_NIGHTLY !== '1') {
+    for (const f of flows) {
+      if (!f.nightlyOnly || !why.has(f.name) || (only ?? []).includes(f.name)) continue;
+      why.delete(f.name);
+      console.log(`skip ${f.name}: nightly-only (${f.nightlyOnly}); name it in --only to run it`);
+    }
+  }
   if (skipUnchanged && !exact) {
     const last = readJson(PASSES, {})[mode] ?? {};
     const skips = {};
@@ -10559,7 +10568,9 @@ try {
       await flow('composed-sculpt-survival-crash', 'composed module hall sculpt survival stockpile bill refund water restart crash', () => composedSculptSurvivalFlow({ crash: true }));
       // (B092-LEFT) a stale artifact on a sculpt site: stopped before any re-check, pin, quote, realise or spend; a new Start plans it anew
       // (B092-LEFT, batch 092 GPT review P2) the crash points left: during the free carve, the free water, and the undo's refund crediting
-      await flow('composed-sculpt-crash-carve', 'composed module hall sculpt survival stockpile bill refund water restart crash', () => composedSculptSurvivalFlow({ crash: 'carve' }));
+      // nightly-only until Architect fixes the orphaned 'placing' terrain site after a mid-carve halt (ARCHITECT-ASKS, 11-21: the fluids stage waits forever, 1 in 3)
+      await flow('composed-sculpt-crash-carve', 'composed module hall sculpt survival stockpile bill refund water restart crash', () => composedSculptSurvivalFlow({ crash: 'carve' }), [],
+        { nightlyOnly: 'Architect orphaned placing site after a mid-carve halt' });
       await flow('composed-sculpt-crash-water', 'composed module hall sculpt survival stockpile bill refund water restart crash', () => composedSculptSurvivalFlow({ crash: 'water' }));
       await flow('composed-sculpt-crash-refund', 'composed module hall sculpt survival stockpile bill refund undo restart crash', () => composedSculptSurvivalFlow({ crash: 'refund' }));
       await flow('composed-sculpt-stale', 'composed module hall sculpt survival stockpile bill stale', () => composedSculptStaleFlow());

@@ -194,7 +194,7 @@ function prepareWorktree() {
 
 /** No credentials of any kind; the main checkout's Gradle home. */
 function cleanEnv() {
-  const env = { ...process.env, JAVA_HOME, GRADLE_USER_HOME: path.join(MAIN, '.gradle-home') };
+  const env = { ...process.env, JAVA_HOME, GRADLE_USER_HOME: path.join(MAIN, '.gradle-home'), E2E_NIGHTLY: '1' };
   for (const k of ['ANTHROPIC_API_KEY', 'ANTHROPIC_BASE_URL', 'CLAUDE_CODE_OAUTH_TOKEN', 'CLAUDE_CODE_OAUTH_SCOPES', 'CLAUDE_CODE_USE_BEDROCK', 'CLAUDE_CODE_USE_VERTEX', 'GITHUB_TOKEN']) delete env[k];
   return env;
 }
