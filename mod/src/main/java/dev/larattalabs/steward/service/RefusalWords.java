@@ -88,7 +88,12 @@ public final class RefusalWords {
 		if (err == null) return NO_ANSWER;
 		for (Throwable t = err; t != null; t = t.getCause() == t ? null : t.getCause()) {
 			if (t instanceof Own own && own.getMessage() != null) return own.getMessage();
-			if (t instanceof ArchitectRefused r) return savingOff(r.detail()) ? SAVING_OFF : reason(r.reason());
+			if (t instanceof ArchitectRefused r) {
+				if (savingOff(r.detail())) return SAVING_OFF;
+				// (T4S-PRE, T4 change 7) held because Architect's records didn't load: said so, never as busy
+				if (SiteBusy.of(r).recordsUnreadable()) return RemovalStops.RECORDS_UNREADABLE;
+				return reason(r.reason());
+			}
 			if (t instanceof java.util.concurrent.TimeoutException) return NO_ANSWER;
 		}
 		return GENERIC;

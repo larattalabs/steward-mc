@@ -37,6 +37,108 @@ public final class Undo {
 		else UNDOING.remove(settlementId);
 	}
 
+	// ------------------------------------------------------------------ (T4S-PRE) removals on Architect's transaction layer (T4)
+
+	/**
+	 * Whether Architect runs removals as transactions (T4c: feature {@link RemovalEnds#FEATURE}): a group or a site removal is then decided whole before
+	 * anything is taken down (never "stopped after N of M" once decided), so its undo leaves an intent note first and is finished by a sweep or by
+	 * {@code RemovalFinished}. False on an Architect without it (0.83.0), or when it can't be read: everything as before.
+	 */
+	static boolean txnRemovals() {
+		try {
+			return ArchitectAccess.api().features().contains(RemovalEnds.FEATURE);
+		} catch (RuntimeException | LinkageError e) {
+			return false;
+		}
+	}
+
+	/**
+	 * Whether Architect's sites file loaded cleanly ({@code Sites.loadHealthy()}; T4 change 7: also false while a participant store is held because it
+	 * failed to load). A site read as absent counts as gone only when it holds; can't tell (an older Architect, an error): not healthy.
+	 */
+	static boolean healthy(@org.jspecify.annotations.Nullable MinecraftServer server) {
+		try {
+			return ArchitectAccess.api().sites(server).loadHealthy();
+		} catch (RuntimeException | LinkageError e) {
+			return false;
+		}
+	}
+
+	/** (T4 change 5c) How many times a removal Architect refuses {@code held(other)} (another change holds what it needs; nothing changed) is asked. */
+	static final int OTHER_TRIES = 5;
+	/** Runs a held(other) retry a moment later (tests run it at once or queue it). */
+	static final java.util.function.Consumer<Runnable> LATER = r -> CompletableFuture.delayedExecutor(2, java.util.concurrent.TimeUnit.SECONDS).execute(r);
+	static java.util.function.Consumer<Runnable> later = LATER;
+
+	/**
+	 * {@code ask}'s removal, asked again a moment later while Architect answers SITE_BUSY {@code held(other)}, at most {@link #OTHER_TRIES} times and only
+	 * in this world session; any other answer (held(decided) included) is the call's. On the server thread.
+	 */
+	static CompletableFuture<RemoveResult> asking(@org.jspecify.annotations.Nullable MinecraftServer server, java.util.function.Supplier<CompletableFuture<RemoveResult>> ask) {
+		return asking(server, ask, OTHER_TRIES, Session.current());
+	}
+
+	private static CompletableFuture<RemoveResult> asking(@org.jspecify.annotations.Nullable MinecraftServer server, java.util.function.Supplier<CompletableFuture<RemoveResult>> ask,
+		int left, int session) {
+		CompletableFuture<RemoveResult> out = new CompletableFuture<>();
+		ask.get().whenComplete((r, err) -> {
+			if (err != null && left > 1 && Session.is(session) && SiteBusy.of(err).other()) {
+				Steward.LOGGER.info("a removal is held by another change (held(other)); asked again ({} left)", left - 1);
+				later.accept(() -> ArchitectAccess.onServer(server, () -> asking(server, ask, left - 1, session).whenComplete((r2, e2) -> {
+					if (e2 != null) out.completeExceptionally(e2);
+					else out.complete(r2);
+				})));
+				return;
+			}
+			if (err != null) out.completeExceptionally(err);
+			else out.complete(r);
+		});
+		return out;
+	}
+
+	/** The text a held, decided undo's note starts with: still open (the sweep or {@code RemovalFinished} finishes it). */
+	static final String HELD = "Undo under way";
+
+	/** The note a held, decided undo leaves (tag {@code tag}: its region's or its entry's intent tag); never Architect's text. */
+	static Settlement.LogEntry heldNote(String tag, String what, SiteBusy.Held h) {
+		return new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.NOTE, HELD + ": \"" + what + "\" (" + RemovalStops.waitsFor(h) + ")", List.of(), tag);
+	}
+
+	/** Saves the held note unless the newest note with {@code tag} is one already (a re-ask answered held again). */
+	private static void noteHeld(Settlement s, String tag, String what, SiteBusy.Held h) {
+		var fresh = Settlements.store().get(s.id()).orElse(s);
+		for (int i = fresh.log().size() - 1; i >= 0; i--) {
+			var e = fresh.log().get(i);
+			if (e.kind() != Settlement.Kind.NOTE || !tag.equals(e.siteGroup())) continue;
+			if (e.text().startsWith(HELD)) return;
+			break;
+		}
+		if (!Settlements.log(s.id(), heldNote(tag, what, h)).ok()) Steward.LOGGER.warn("{}: the held undo ({}) left no note: /steward undo again finishes it", s.id(), tag);
+	}
+
+	/** The tag of the intent note for the undo of a placing entry by its group or site by site (T4S-PRE): {@code undo:entry:<at>}. */
+	static String entryTag(Settlement.LogEntry placed) {
+		return ENTRY_PREFIX + placed.at();
+	}
+
+	static final String ENTRY_PREFIX = "undo:entry:";
+
+	/** The held note's tag for a site-by-site undo held at {@code siteId}: the entry's, with the site the sweep waits for. */
+	static String entryTag(Settlement.LogEntry placed, String siteId) {
+		return entryTag(placed) + "@" + siteId;
+	}
+
+	/** The note the undo of a placing entry by its group or site by site saves just before Architect is asked (only with {@link #txnRemovals}). */
+	static Settlement.LogEntry entryIntentNote(Settlement.LogEntry placed) {
+		return new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.NOTE, INTENT + " \"" + placed.text() + "\": its sites are being removed (a stop meanwhile"
+			+ " is put right by itself)", List.of(), entryTag(placed));
+	}
+
+	/** The note closing a stopped or refused undo of an entry: its intent no longer stands. */
+	static Settlement.LogEntry entryClosedNote(Settlement.LogEntry placed, String why) {
+		return new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.NOTE, STOPPED + ": " + why, List.of(), entryTag(placed));
+	}
+
 	/** Said when the undo happened but its history could not be saved. */
 	static final String UNLOGGED = "The settlement's history could not be saved: the undo happened, but its record is missing (see the log).";
 
@@ -149,43 +251,103 @@ public final class Undo {
 		String group = entry.get().siteGroup();
 		var g = group == null ? java.util.Optional.<dev.larattalabs.architect.api.SiteGroup>empty() : sites.group(group);
 		if (g.isPresent() && !g.get().sites().isEmpty() && entry.get().siteIds().containsAll(g.get().sites())) {
-			List<String> standing = List.copyOf(g.get().sites());
-			int session = Session.current();
-			sites.removeGroup(group, as).whenComplete((r, err) -> {
-				// the world closing mid-undo is not its outcome: what Architect finished is read again after the restart (the undo can be run again)
-				if (!Session.is(session) || SettlementRunner.worldStopped(err)) { UNDOING.remove(s.id()); return; }
-				List<String> gone = err == null && r.removed() ? standing : standing.stream().filter(id -> sites.get(id).isEmpty()).toList();
-				if (!gone.isEmpty() && !Settlements.log(s.id(), removed(entry.get(), gone, gone.size() == standing.size(), now)).ok()) say.accept(UNLOGGED);
-				UNDOING.remove(s.id());
-			districts(server, s, say);
-				// (raw-text) Architect's error is logged, never said
-				if (err != null) say.accept(stoppedByError(s.id(), gone.size(), standing.size(), err));
-				// (slice DRS, 8bS, undo-words) told by the group's typed stop cause (S-DRS-1) in the steward's words, never by the blocker's text (a
-				// refused save's names chunk files); every site still standing took nothing down, some gone took part
-				else if (!r.removed()) {
-					Steward.LOGGER.info("{}: the undo of group {} stopped: {}", s.id(), group, r.blockers());
-					// the group's typed stop when Architect types it, else what still stands
-					var stop = RemovalStops.groupStop(sites, group);
-					if (stop == null || stop == dev.larattalabs.architect.api.RemovalStop.NONE) stop = gone.isEmpty() ? dev.larattalabs.architect.api.RemovalStop.NOT_STARTED
-						: dev.larattalabs.architect.api.RemovalStop.PARTIAL;
-					say.accept(RemovalStops.undoStopped(stop, RemovalStops.groupCause(sites, group), s.id(),
-						gone.size() + " of " + Words.count(standing.size(), "site", "sites")));
-				}
-				else say.accept("Undone: removed " + Words.count(gone.size(), "site", "sites") + ", the land is restored.");
-			});
+			groupUndo(server, sites, s, entry.get(), group, List.copyOf(g.get().sites()), now, as, say);
 			return true;
 		}
+		chainUndo(server, sites, s, entry.get(), ids, adopted, now, as, say);
+		return true;
+	}
+
+	/**
+	 * A whole project's undo by its site group ({@code removeGroup}, newest first over ticks), the settlement marked UNDOING by the caller and released
+	 * here. (T4S-PRE) With {@link #txnRemovals}: an intent note first; a decided removal Architect holds ({@code held(decided)}) is said as under way, logs
+	 * nothing (no FAILED, no PARTIAL), leaves its note open for the sweep or {@code RemovalFinished}; a stop took nothing down (T4 change 8), so nothing is
+	 * read as gone from absence. Without it, as before, except that absence counts as gone only on a healthy sites read.
+	 */
+	static void groupUndo(@org.jspecify.annotations.Nullable MinecraftServer server, dev.larattalabs.architect.api.Sites sites, Settlement s, Settlement.LogEntry entry,
+		String group, List<String> standing, java.util.Map<String, Integer> now, RemoveOptions as, Consumer<String> say) {
+		boolean txn = txnRemovals();
+		if (txn) intent(s, entryIntentNote(entry), say);
+		int session = Session.current();
+		asking(server, () -> sites.removeGroup(group, as)).whenComplete((r, err) -> {
+			// the world closing mid-undo is not its outcome: what Architect finished is read again after the restart (the undo can be run again)
+			if (!Session.is(session) || SettlementRunner.worldStopped(err)) { UNDOING.remove(s.id()); return; }
+			var held = SiteBusy.of(err);
+			if (held.decided()) {
+				// decided and held: it finishes by itself; nothing logged as stopped, nothing asked again
+				Steward.LOGGER.info("{}: the undo of group {} is decided and held: {}", s.id(), group, SettlementRunner.message(err));
+				noteHeld(s, entryTag(entry), entry.text(), held);
+				UNDOING.remove(s.id());
+				say.accept(RemovalStops.underWay(held));
+				return;
+			}
+			boolean done = err == null && r.removed();
+			// gone read from absence only for an Architect that may stop part way, and only on a healthy sites read (a file that did not load lists nothing)
+			List<String> gone = done ? standing : txn || !healthy(server) ? List.of() : standing.stream().filter(id -> sites.get(id).isEmpty()).toList();
+			// logged once: a removal already logged since (the sweep, RemovalFinished) is not logged again
+			List<String> fresh = notYetLogged(s, entry, gone);
+			if (!fresh.isEmpty() && !Settlements.log(s.id(), removed(entry, fresh, gone.size() == standing.size(), now)).ok()) say.accept(UNLOGGED);
+			UNDOING.remove(s.id());
+			districts(server, s, say);
+			// (raw-text) Architect's error is logged, never said
+			if (err != null) {
+				if (txn) closeEntry(s, entry, SITES_NOT_NOW);
+				say.accept(stoppedByError(s.id(), gone.size(), standing.size(), err));
+			}
+			// (slice DRS, 8bS, undo-words) told by the group's typed stop cause (S-DRS-1) in the steward's words, never by the blocker's text (a
+			// refused save's names chunk files); every site still standing took nothing down, some gone took part
+			else if (!r.removed()) {
+				Steward.LOGGER.info("{}: the undo of group {} stopped: {}", s.id(), group, r.blockers());
+				// the group's typed stop when Architect types it, else what still stands; (T4 change 8) a txn removal stopped by blockers took nothing down
+				var stop = txn ? dev.larattalabs.architect.api.RemovalStop.NOT_STARTED : RemovalStops.groupStop(sites, group);
+				if (stop == null || stop == dev.larattalabs.architect.api.RemovalStop.NONE) stop = gone.isEmpty() ? dev.larattalabs.architect.api.RemovalStop.NOT_STARTED
+					: dev.larattalabs.architect.api.RemovalStop.PARTIAL;
+				var cause = RemovalStops.groupCause(sites, group);
+				if (txn) closeEntry(s, entry, RemovalStops.noted(stop, cause));
+				say.accept(RemovalStops.undoStopped(stop, cause, s.id(), gone.size() + " of " + Words.count(standing.size(), "site", "sites")));
+			}
+			else say.accept("Undone: removed " + Words.count(gone.size(), "site", "sites") + ", the land is restored.");
+		});
+	}
+
+	/** The chain's stop when a removal is decided and held (the held site and its hold are kept beside it). */
+	private static final String HELD_STOP = "\u0000held";
+	/** The chain's stop when a site reads absent on a sites read that did not load cleanly: it can't be told gone. */
+	static final String RECORDS_STOP = "Architect's records didn't load, so the rest can't be told apart";
+
+	/**
+	 * A partial undo, site by site, newest first, the settlement marked UNDOING by the caller and released here. Stops at the first site Architect
+	 * refuses. (T4S-PRE) A site read as absent is gone only on a healthy sites read; a decided removal Architect holds stops the chain as under way (the
+	 * sites before it are logged with it once it finishes: the sweep or {@code RemovalFinished}); with {@link #txnRemovals} an intent note first.
+	 */
+	static void chainUndo(@org.jspecify.annotations.Nullable MinecraftServer server, dev.larattalabs.architect.api.Sites sites, Settlement s, Settlement.LogEntry entry,
+		List<String> ids, boolean adopted, java.util.Map<String, Integer> now, RemoveOptions as, Consumer<String> say) {
+		boolean txn = txnRemovals();
+		if (txn) intent(s, entryIntentNote(entry), say);
 		List<String> removed = new ArrayList<>();
+		String[] heldSite = new String[1];
+		SiteBusy.Held[] heldHow = new SiteBusy.Held[1];
 		CompletableFuture<String> chain = CompletableFuture.completedFuture(null);
 		for (String id : ids) {
 			chain = chain.thenCompose(stop -> {
 				if (stop != null) return CompletableFuture.completedFuture(stop);
-				// a site removed by hand meanwhile is simply gone
+				// a site removed by hand meanwhile is simply gone; (T4S-PRE) only when Architect's sites loaded cleanly
 				if (sites.get(id).isEmpty()) {
+					if (!healthy(server)) return CompletableFuture.completedFuture(RECORDS_STOP);
 					removed.add(id);
 					return CompletableFuture.completedFuture(null);
 				}
-				return sites.remove(id, as).thenApply(r -> {
+				return asking(server, () -> sites.remove(id, as)).handle((r, err) -> {
+					if (err != null) {
+						var h = SiteBusy.of(err);
+						if (h.decided()) {
+							heldSite[0] = id;
+							heldHow[0] = h;
+							Steward.LOGGER.info("{}: the undo of site {} is decided and held: {}", s.id(), id, SettlementRunner.message(err));
+							return HELD_STOP;
+						}
+						throw err instanceof java.util.concurrent.CompletionException ce ? ce : new java.util.concurrent.CompletionException(err);
+					}
 					if (r.removed()) {
 						removed.add(id);
 						return null;
@@ -197,18 +359,42 @@ public final class Undo {
 		int session = Session.current();
 		chain.whenComplete((stop, err) -> {
 			if (!Session.is(session) || SettlementRunner.worldStopped(err)) { UNDOING.remove(s.id()); return; }
-			if (!removed.isEmpty() && !Settlements.log(s.id(), removed(entry.get(), List.copyOf(removed), removed.size() == ids.size(), now)).ok()) say.accept(UNLOGGED);
+			if (HELD_STOP.equals(stop)) {
+				// decided and held: nothing logged now; the sites before it are logged with it once it finishes
+				noteHeld(s, entryTag(entry, heldSite[0]), entry.text(), heldHow[0]);
+				UNDOING.remove(s.id());
+				say.accept(RemovalStops.underWay(heldHow[0]));
+				return;
+			}
+			List<String> fresh = notYetLogged(s, entry, removed);
+			if (!fresh.isEmpty() && !Settlements.log(s.id(), removed(entry, fresh, removed.size() == ids.size(), now)).ok()) say.accept(UNLOGGED);
 			UNDOING.remove(s.id());
 			districts(server, s, say);
 			// (raw-text) Architect's error and blockers are logged, never said: a site's removal has no typed cause, so the generic words
-			if (err != null) say.accept(stoppedByError(s.id(), removed.size(), ids.size(), err));
-			else if (stop != null) say.accept(stoppedAfter(s.id(), removed.size(), ids.size(), stop)); else if (adopted) {
+			if (err != null) {
+				if (txn) closeEntry(s, entry, SITES_NOT_NOW);
+				say.accept(stoppedByError(s.id(), removed.size(), ids.size(), err));
+			} else if (stop != null) {
+				if (txn && removed.size() < ids.size()) closeEntry(s, entry, stop);
+				say.accept(stoppedAfter(s.id(), removed.size(), ids.size(), stop));
+			} else if (adopted) {
 				say.accept("Undone: the steward no longer looks after it, and the build stands as it was.");
 			} else {
 				say.accept("Undone: removed " + Words.count(removed.size(), "site", "sites") + ", the land is restored.");
 			}
 		});
-		return true;
+	}
+
+	/** Saves an undo's intent note; a failed save is said (the undo goes on: a restart mid-removal then needs the undo again). */
+	private static void intent(Settlement s, Settlement.LogEntry note, Consumer<String> say) {
+		if (Settlements.log(s.id(), note).ok()) return;
+		Steward.LOGGER.warn("{}: the undo ({}) left no note (a restart mid-removal needs /steward undo again)", s.id(), note.siteGroup());
+		say.accept("If the world closes before this finishes, use /steward undo " + s.id() + " again.");
+	}
+
+	/** Closes an entry's intent note: the undo stopped or was refused, so a later removal by something else is never taken for it. */
+	private static void closeEntry(Settlement s, Settlement.LogEntry entry, String why) {
+		if (!Settlements.log(s.id(), entryClosedNote(entry, why)).ok()) Steward.LOGGER.warn("{}: the stopped undo of \"{}\" left its note open", s.id(), entry.text());
 	}
 
 	/** A district whose road an undo took, with nothing else standing in it, is given up. */
@@ -229,11 +415,26 @@ public final class Undo {
 	 */
 	static boolean region(MinecraftServer server, Settlement s, Settlement.LogEntry entry, String region, java.util.Map<String, Integer> now,
 		Consumer<String> say, Consumer<Boolean> whenDone, boolean intent) {
+		return region(server, s, entry, region, now, say, whenDone, intent, null);
+	}
+
+	/**
+	 * As above; {@code whenHeld} (T4S-PRE) runs instead of {@code whenDone} when Architect decided the removal and holds it ({@code held(decided)}): it
+	 * finishes by itself (the region stays REMOVING; the sweep or {@code RemovalFinished} logs it), so a cancel waits for REMOVED rather than ending.
+	 * Null: {@code whenDone(false)}, with nothing said about asking again.
+	 */
+	static boolean region(MinecraftServer server, Settlement s, Settlement.LogEntry entry, String region, java.util.Map<String, Integer> now,
+		Consumer<String> say, Consumer<Boolean> whenDone, boolean intent, @org.jspecify.annotations.Nullable Runnable whenHeld) {
 		// the settlement is busy while its land is rewritten (no build surveys it half restored), whoever asked: undo, a cancel, the sweep
 		UNDOING.add(s.id());
 		Consumer<Boolean> done = ok -> {
 			UNDOING.remove(s.id());
 			whenDone.accept(ok);
+		};
+		Runnable heldDone = () -> {
+			UNDOING.remove(s.id());
+			if (whenHeld != null) whenHeld.run();
+			else whenDone.accept(false);
 		};
 		var regions = ArchitectAccess.api().regions();
 		List<String> regionSites = List.copyOf(entry.siteIds());
@@ -281,8 +482,18 @@ public final class Undo {
 			say.accept("If the world closes before this finishes, use /steward undo " + s.id() + " again.");
 		}
 		int session = Session.current();
-		regions.remove(region, new RemoveOptions(false, s.owner())).whenComplete((r, err) -> ArchitectAccess.onServer(server, () -> {
+		asking(server, () -> regions.remove(region, new RemoveOptions(false, s.owner()))).whenComplete((r, err) -> ArchitectAccess.onServer(server, () -> {
 			if (!Session.is(session) || SettlementRunner.worldStopped(err)) { done.accept(null); return; }
+			// (T4S-PRE, 8cT/T4) decided and held: under way, finishing by itself. No closing note (the sweep, SD2, or RemovalFinished logs it once it is
+			// REMOVED), nothing logged as stopped, nothing asked again
+			var hold = SiteBusy.of(err);
+			if (hold.decided()) {
+				Steward.LOGGER.info("{}: the undo of {} is decided and held: {}", s.id(), region, SettlementRunner.message(err));
+				noteHeld(s, intentTag(region), entry.text(), hold);
+				say.accept(RemovalStops.underWay(hold));
+				heldDone.run();
+				return;
+			}
 			// taken up only when Architect says so (1.14 C22: a retried removal finishes the restorations it left, or answers not removed)
 			boolean ok = err == null && r.removed();
 			// logged once (slice VSR): two asks of one removal (Architect joins them) retire the entry once
@@ -350,7 +561,8 @@ public final class Undo {
 			var e = log.get(i);
 			if (e.kind() != Settlement.Kind.NOTE || e.siteGroup() == null || !e.siteGroup().startsWith(prefix)) continue;
 			String region = e.siteGroup().substring(prefix.length());
-			if (e.text().startsWith(INTENT)) open.put(region, i);
+			// (T4S-PRE) a held, decided removal's note keeps it open too
+			if (e.text().startsWith(INTENT) || e.text().startsWith(HELD)) open.put(region, i);
 			else if (e.text().startsWith(STOPPED)) open.remove(region);
 		}
 		List<String> out = new ArrayList<>();
@@ -395,8 +607,19 @@ public final class Undo {
 
 	/** {@link #resumeInterrupted} once the settlement is known not busy. */
 	static boolean finishInterrupted(@org.jspecify.annotations.Nullable MinecraftServer server, Settlement given) {
+		return !finish(server, given, null, null, server == null ? (id, line) -> { } : (id, line) -> StewardVoice.say(server, id, line)).isEmpty();
+	}
+
+	/**
+	 * (SD2; T4S-PRE) The open undos of {@code given} finished: each region an undo's note names, once Architect holds its tombstone (or {@code doneKind}
+	 * "region" names it: {@code RemovalFinished}'s positive answer), and (T4S-PRE) each entry whose group or site-by-site undo left an intent or a held
+	 * note, once its sites read absent on a healthy sites read (or {@code doneKind} "group"/"site" names it). Each logged once (on a fresh read), said
+	 * through {@code say} (settlement id, line). Returns the placing entries it logged. Server thread.
+	 */
+	static List<Settlement.LogEntry> finish(@org.jspecify.annotations.Nullable MinecraftServer server, Settlement given, @org.jspecify.annotations.Nullable String doneKind,
+		@org.jspecify.annotations.Nullable String doneId, java.util.function.BiConsumer<String, String> say) {
 		var s = Settlements.store().get(given.id()).orElse(given);
-		boolean logged = false;
+		List<Settlement.LogEntry> logged = new ArrayList<>();
 		for (String region : interrupted(s)) {
 			dev.larattalabs.architect.api.RegionState state;
 			try {
@@ -404,16 +627,19 @@ public final class Undo {
 			} catch (RuntimeException | LinkageError e) {
 				state = null;
 			}
-			if (resume(state) != Resume.LOG) continue;
 			var fresh = Settlements.store().get(s.id()).orElse(s);
+			// the event's answer counts only for a held removal: an unheld one (RemovalFinished fires for it too) is its own answer's to log
+			boolean said = "region".equals(doneKind) && region.equals(doneId) && heldOpen(fresh, intentTag(region));
+			if (!said && resume(state) != Resume.LOG) continue;
 			var placed = VillageSweep.entryOf(fresh, region);
 			if (placed.isEmpty() || retired(fresh, placed.get())) continue;
+			boolean wasHeld = heldOpen(fresh, intentTag(region));
 			if (!Settlements.log(s.id(), removed(placed.get(), placed.get().siteIds(), true, java.util.Map.of())).ok()) {
 				Steward.LOGGER.warn("{}: the undo of {} finished after a restart, but its record could not be saved (tried again later)", s.id(), region);
 				continue;
 			}
-			logged = true;
-			Steward.LOGGER.info("{}: the undo of {} finished after a restart: logged", s.id(), region);
+			logged.add(placed.get());
+			Steward.LOGGER.info("{}: the undo of {} finished {}: logged", s.id(), region, wasHeld ? "by itself" : "after a restart");
 			// (batch review 1) only this region's own district, on its tombstone with its entries retired and a healthy sites read (giveUpRemoved);
 			// never the settlement-wide pass, which takes a sibling whose record isn't loaded yet for removed
 			String more = "";
@@ -423,12 +649,142 @@ public final class Undo {
 				Districts.giveUpRemoved(server, after, own.get());
 				if (Settlements.store().get(s.id()).flatMap(x -> x.lands().district(own.get().id())).isEmpty()) more = " " + own.get().name() + " is given up: its land is free again.";
 			}
-			if (server != null) StewardVoice.say(server, s.id(), "Undone: \"" + placed.get().text() + "\" was taken up while the world was closed, the land restored." + more);
+			say.accept(s.id(), "Undone: \"" + placed.get().text() + "\" " + (wasHeld ? "finished by itself" : "was taken up while the world was closed") + ", the land restored." + more);
 		}
+		logged.addAll(finishEntries(server, s, doneKind, doneId, say));
 		// a district region removed and logged, its give-up not saved (a stop between them)
 		var now = Settlements.store().get(s.id()).orElse(s);
 		for (Settlement.District d : now.lands().districts()) if (!d.square() && d.region() != null) Districts.giveUpRemoved(server, now, d);
 		return logged;
+	}
+
+	/** Whether the newest note with {@code tag} is a held, decided removal's (T4S-PRE). Pure. */
+	static boolean heldOpen(Settlement s, String tag) {
+		for (int i = s.log().size() - 1; i >= 0; i--) {
+			var e = s.log().get(i);
+			if (e.kind() == Settlement.Kind.NOTE && tag.equals(e.siteGroup())) return e.text().startsWith(HELD);
+		}
+		return false;
+	}
+
+	/**
+	 * (T4S-PRE) An entry's undo by its group or site by site left open: its placing entry, the site a held chain waits for (null: all of the entry's), and
+	 * whether it is held (decided, finishing by itself) or only asked (a stop came before its answer).
+	 */
+	record EntryIntent(Settlement.LogEntry placed, @org.jspecify.annotations.Nullable String waitsFor, boolean held) {
+	}
+
+	/**
+	 * (T4S-PRE) The entries whose group or site-by-site undo left an intent or held note (tag {@code undo:entry:<at>[@site]}) with no closing note after
+	 * it, and whose placing entry is not retired and older than the note. Pure over the history.
+	 */
+	static List<EntryIntent> interruptedEntries(Settlement s) {
+		java.util.LinkedHashMap<Long, Integer> open = new java.util.LinkedHashMap<>();
+		java.util.Map<Long, String> waits = new java.util.HashMap<>();
+		var log = s.log();
+		for (int i = 0; i < log.size(); i++) {
+			var e = log.get(i);
+			if (e.kind() != Settlement.Kind.NOTE || e.siteGroup() == null || !e.siteGroup().startsWith(ENTRY_PREFIX)) continue;
+			String rest = e.siteGroup().substring(ENTRY_PREFIX.length());
+			int atSign = rest.indexOf('@');
+			long at;
+			try {
+				at = Long.parseLong(atSign < 0 ? rest : rest.substring(0, atSign));
+			} catch (NumberFormatException x) {
+				continue;
+			}
+			if (e.text().startsWith(INTENT) || e.text().startsWith(HELD)) {
+				open.put(at, i);
+				if (atSign >= 0) waits.put(at, rest.substring(atSign + 1));
+				else waits.remove(at);
+			} else if (e.text().startsWith(STOPPED)) open.remove(at);
+		}
+		List<EntryIntent> out = new ArrayList<>();
+		for (var o : open.entrySet()) {
+			Settlement.LogEntry placed = null;
+			for (int i = o.getValue() - 1; i >= 0; i--) {
+				var e = log.get(i);
+				if (e.at() == o.getKey() && (e.kind() == Settlement.Kind.PROJECT_PLACED || e.kind() == Settlement.Kind.BUILD_ADOPTED)) { placed = e; break; }
+			}
+			if (placed == null || retired(s, placed)) continue;
+			out.add(new EntryIntent(placed, waits.get(o.getKey()), log.get(o.getValue()).text().startsWith(HELD)));
+		}
+		return List.copyOf(out);
+	}
+
+	/**
+	 * (T4S-PRE) What an open entry undo's sites tell now: each of {@code sites} (the entry's) gone when {@code done} names it (Architect's positive answer)
+	 * or it reads absent on a healthy read; the undo is finished once the site it waits for (all of them when none) is gone. Null: not finished (wait).
+	 * Pure over the reads.
+	 */
+	static @org.jspecify.annotations.Nullable List<String> finished(List<String> sites, @org.jspecify.annotations.Nullable String waitsFor, java.util.Set<String> done,
+		boolean healthy, java.util.function.Predicate<String> absent) {
+		java.util.function.Predicate<String> gone = id -> done.contains(id) || healthy && absent.test(id);
+		boolean end = waitsFor != null ? gone.test(waitsFor) : sites.stream().allMatch(gone);
+		return end ? sites.stream().filter(gone).toList() : null;
+	}
+
+	private static List<Settlement.LogEntry> finishEntries(@org.jspecify.annotations.Nullable MinecraftServer server, Settlement s, @org.jspecify.annotations.Nullable String doneKind,
+		@org.jspecify.annotations.Nullable String doneId, java.util.function.BiConsumer<String, String> say) {
+		List<Settlement.LogEntry> logged = new ArrayList<>();
+		var open = interruptedEntries(s);
+		if (open.isEmpty()) return logged;
+		boolean healthy = healthy(server);
+		dev.larattalabs.architect.api.Sites sites;
+		try {
+			sites = ArchitectAccess.api().sites(server);
+		} catch (RuntimeException | LinkageError e) {
+			return logged;
+		}
+		for (EntryIntent it : open) {
+			var placed = it.placed();
+			java.util.Set<String> done = new java.util.HashSet<>();
+			// the event's answer counts only for a held removal (an unheld one is its own answer's to log)
+			String kind = it.held() ? doneKind : null;
+			if ("group".equals(kind) && doneId != null && doneId.equals(placed.siteGroup())) done.addAll(placed.siteIds());
+			if ("site".equals(kind) && doneId != null && placed.siteIds().contains(doneId)) done.add(doneId);
+			// sites named by an earlier removal of this entry are not logged again
+			var fresh = Settlements.store().get(s.id()).orElse(s);
+			java.util.Set<String> already = removedSince(fresh, placed);
+			List<String> left = placed.siteIds().stream().filter(id -> !already.contains(id)).toList();
+			List<String> gone;
+			try {
+				gone = finished(left, it.waitsFor(), done, healthy, id -> sites.get(id).isEmpty());
+			} catch (RuntimeException | LinkageError e) {
+				gone = null;
+			}
+			if (gone == null) continue;
+			boolean whole = gone.size() == left.size();
+			if (!gone.isEmpty() && !Settlements.log(s.id(), removed(placed, gone, whole && already.isEmpty(), java.util.Map.of())).ok()) {
+				Steward.LOGGER.warn("{}: the undo of \"{}\" finished, but its record could not be saved (tried again later)", s.id(), placed.text());
+				continue;
+			}
+			// part of it (a held site-by-site undo): the rest stands, and the note is closed so it is never logged twice
+			if (!whole) closeEntry(s, placed, "the rest stands");
+			logged.add(placed);
+			Steward.LOGGER.info("{}: the undo of \"{}\" finished {}: logged {} of {}", s.id(), placed.text(), it.held() ? "by itself" : "after a restart", gone.size(), left.size());
+			String how = it.held() ? "finished by itself" : "was finished while the world was closed";
+			say.accept(s.id(), whole ? "Undone: \"" + placed.text() + "\" " + how + ", the land is restored."
+				: "Undone in part: " + Words.count(gone.size(), "site", "sites") + " of \"" + placed.text() + "\" " + how + "; the rest stands (/steward undo " + s.id() + " again).");
+		}
+		return logged;
+	}
+
+	/** Of {@code gone}, the sites no {@code PROJECT_REMOVED} after {@code placed} names yet, on a fresh read. */
+	private static List<String> notYetLogged(Settlement s, Settlement.LogEntry placed, List<String> gone) {
+		var already = removedSince(Settlements.store().get(s.id()).orElse(s), placed);
+		return gone.stream().filter(id -> !already.contains(id)).toList();
+	}
+
+	/** The sites a {@code PROJECT_REMOVED} after {@code placed} names already. Pure. */
+	private static java.util.Set<String> removedSince(Settlement s, Settlement.LogEntry placed) {
+		java.util.Set<String> out = new java.util.HashSet<>();
+		boolean after = false;
+		for (var e : s.log()) {
+			if (!after && e.kind() == placed.kind() && e.at() == placed.at() && java.util.Objects.equals(e.siteGroup(), placed.siteGroup())) { after = true; continue; }
+			if (after && e.kind() == Settlement.Kind.PROJECT_REMOVED) out.addAll(e.siteIds());
+		}
+		return out;
 	}
 
 	/**
@@ -437,6 +793,16 @@ public final class Undo {
 	 */
 	public static boolean growth(MinecraftServer server, Settlement s, Settlement.LogEntry entry, Growths.Ref ref, java.util.Map<String, Integer> now,
 		Consumer<String> say, Consumer<Boolean> whenDone) {
+		return growth(server, s, entry, ref, now, say, whenDone, null);
+	}
+
+	/**
+	 * As above; {@code whenHeld} (T4S-PRE) runs instead of {@code whenDone} when Architect decided the take-up and holds it ({@code held(decided)},
+	 * said by {@link Growths#undo}): the busy mark is released, nothing is said about asking again, and the growth sweep logs it once its revision reads
+	 * UNDONE. Null: {@code whenDone(false)}.
+	 */
+	public static boolean growth(MinecraftServer server, Settlement s, Settlement.LogEntry entry, Growths.Ref ref, java.util.Map<String, Integer> now,
+		Consumer<String> say, Consumer<Boolean> whenDone, @org.jspecify.annotations.Nullable Runnable whenHeld) {
 		// (slice A2L) no longer refused while its targets wait for materials: Architect's RU cancels and refunds them (a stray survival_building answer
 		// is said in A2's words by Growths.undo)
 		UNDOING.add(s.id());
@@ -458,7 +824,11 @@ public final class Undo {
 				say.accept("Undone: " + whose + " change is taken up, the land restored.");
 			} else say.accept("Run /steward undo " + s.id() + " again once it is clear.");
 			whenDone.accept(ok);
-		}, answer::set);
+		}, answer::set, () -> {
+			UNDOING.remove(s.id());
+			if (whenHeld != null) whenHeld.run();
+			else whenDone.accept(false);
+		});
 		return true;
 	}
 

@@ -546,6 +546,10 @@ public final class ModuleDev {
 		a.addProperty("minecraft", env.minecraft());
 		a.addProperty("architect", env.architect());
 		a.addProperty("givenPrograms", env.features().contains(ModuleGate.FEATURE));
+		// (T4S-PRE) Architect's features, for the e2e and the hall tool's feature-gated rows (T4c's removal_finished)
+		JsonArray features = new JsonArray();
+		env.features().stream().sorted().forEach(features::add);
+		a.add("features", features);
 		a.addProperty("measuring", env.measuring());
 		return a;
 	}

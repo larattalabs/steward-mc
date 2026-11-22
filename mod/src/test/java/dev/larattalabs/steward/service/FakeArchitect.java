@@ -54,7 +54,29 @@ final class FakeArchitect {
 		/** Done, but the answer is lost on its way (a timeout): the caller must read again to know. */
 		APPLY_THEN_LOSE,
 		/** Never answered (the call is in flight until {@link #complete} is run). */
-		HOLD
+		HOLD,
+		/**
+		 * (T4S-PRE, T4) Decided and held: the future fails at once with {@code SITE_BUSY} detail {@code held(decided)} (the place, {@link #heldWhere},
+		 * in the message), and the removal finishes later, when {@link #complete} runs (as Architect's held txn retires).
+		 */
+		HELD_DECIDED,
+		/** (T4S-PRE, T4 change 5c) Another txn holds a resource: {@code SITE_BUSY held(other)}, nothing done, {@link #otherTimes} times; then APPLY. */
+		HELD_OTHER
+	}
+
+	/** (T4S-PRE) The place a {@code held(decided)} names ({@code chunk x,z}, or {@code records unreadable}). */
+	String heldWhere = "chunk 3,-4";
+	/** (T4S-PRE) How many more calls a HELD_OTHER answer refuses before it applies. */
+	int otherTimes = 1;
+	/** (T4S-PRE) Site groups ({@code removeGroup}): group id to its sites. */
+	final Map<String, List<String>> siteGroups = new LinkedHashMap<>();
+
+	ArchitectRefused heldDecided() {
+		return new ArchitectRefused(Reason.SITE_BUSY, "held(decided) tx-7: " + heldWhere, "held(decided)");
+	}
+
+	static ArchitectRefused heldOther() {
+		return new ArchitectRefused(Reason.SITE_BUSY, "held(other) tx-3: crate 1,64,2 SENTINEL-RAW", "held(other)");
 	}
 
 	static final class Rev {
@@ -412,6 +434,11 @@ final class FakeArchitect {
 				yield loadHealthy ? sites.values().stream().filter(s -> owner == null || owner.equals(s.owner)).map(Site::view).toList() : List.of();
 			}
 			case "remove" -> removeSite((String) a[0], (RemoveOptions) a[1]);
+			case "removeGroup" -> {
+				calls.add("sites.removeGroup " + a[0]);
+				String g = (String) a[0];
+				yield answer(removeAnswer, () -> { for (String id : siteGroups.getOrDefault(g, List.of())) sites.remove(id); siteGroups.remove(g); });
+			}
 			case "loadHealthy" -> loadHealthy;
 			// (CRASH-T) a composed town is placed as a region, never a batch or a site group: none
 			case "batches" -> { calls.add("sites.batches " + a[0]); yield List.of(); }
@@ -616,6 +643,7 @@ final class FakeArchitect {
 			return f;
 		}
 		if (undoAnswer == Answer.BLOCKED && undoWaits != null) suffix.forEach(v -> { v.state = "UNDOING"; v.waiting = undoWaits; v.removalStopCause = undoWaitCause; });
+		if (undoAnswer == Answer.HELD_DECIDED) suffix.forEach(v -> v.state = "UNDOING");
 		return answer(undoAnswer, apply);
 	}
 
@@ -625,6 +653,7 @@ final class FakeArchitect {
 	private CompletableFuture<RemoveResult> removeRegion(String id) {
 		calls.add("regions.remove " + id);
 		Region r = regions.get(id);
+		if (removeAnswer == Answer.HELD_DECIDED) r.state = RegionState.REMOVING;
 		return answer(removeAnswer, () -> {
 			r.state = RegionState.REMOVED;
 			// (slice SD) a region built from materials: each target's paid blocks back once per key (RS C29: a target still building leaves the feed and
@@ -656,14 +685,20 @@ final class FakeArchitect {
 		return f;
 	}
 
+	/** (T4S-PRE) A site's own answer to {@code Sites.remove}, in place of {@link #removeAnswer}. */
+	final Map<String, Answer> siteAnswers = new HashMap<>();
+
 	private CompletableFuture<RemoveResult> removeSite(String id, RemoveOptions o) {
 		calls.add("sites.remove " + id);
-		return answer(removeAnswer, () -> sites.remove(id));
+		return answer(siteAnswers.getOrDefault(id, removeAnswer), () -> sites.remove(id));
 	}
 
 	private CompletableFuture<RemoveResult> answer(Answer how, Runnable apply) {
 		var f = new CompletableFuture<RemoveResult>();
+		if (how == Answer.HELD_OTHER && otherTimes-- <= 0) how = Answer.APPLY;
 		switch (how) {
+			case HELD_DECIDED -> { held.add(apply); f.completeExceptionally(new java.util.concurrent.CompletionException(heldDecided())); }
+			case HELD_OTHER -> f.completeExceptionally(heldOther());
 			case APPLY -> { apply.run(); f.complete(new RemoveResult(true, List.of(), Map.of())); }
 			case BLOCKED -> f.complete(new RemoveResult(false, List.of(blocker), Map.of()));
 			case REFUSE -> f.completeExceptionally(new ArchitectRefused(Reason.SITE_BUSY, "refused: busy"));
