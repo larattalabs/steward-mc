@@ -194,7 +194,8 @@ export function laneSession(queue, client, { send, stop, now = Date.now, startS 
 /**
  * The result rows for a lead's queue failures, each naming its client: a failed unit gives one FAIL row per flow (the flow's name in the check,
  * so a rerun can pick it) and a flow row with failed 1 (recordRun then drops the flow's PASS). A unit the child said was done whose flows are
- * missing from its summary fails too. -> { results, flows }.
+ * missing from its summary fails too. A flow row's seconds are null: it has no time, and a 0 would put it last in the next run's queue (LPT).
+ * -> { results, flows }.
  */
 export function queueFailRows({ client, fails = [], taken = [], summaryFlows = null }) {
   const results = [];
@@ -203,7 +204,7 @@ export function queueFailRows({ client, fails = [], taken = [], summaryFlows = n
     if (!f.unit) { results.push({ check: 'queue', ok: false, why: f.why, client }); continue; }
     for (const n of f.unit.flows) {
       results.push({ check: `queue ${n}`, ok: false, why: f.why, client });
-      if (!summaryFlows?.some((x) => x.name === n)) flows.push({ name: n, seconds: 0, load: null, checks: 1, failed: 1, client });
+      if (!summaryFlows?.some((x) => x.name === n)) flows.push({ name: n, seconds: null, load: null, checks: 1, failed: 1, client });
     }
   }
   if (summaryFlows) {
@@ -211,7 +212,7 @@ export function queueFailRows({ client, fails = [], taken = [], summaryFlows = n
       const missing = u.flows.filter((n) => !summaryFlows.some((x) => x.name === n));
       for (const n of missing) {
         results.push({ check: `queue ${n}`, ok: false, why: `unit ${u.id} was done on ${client}, but ${n} has no row in its summary`, client });
-        flows.push({ name: n, seconds: 0, load: null, checks: 1, failed: 1, client });
+        flows.push({ name: n, seconds: null, load: null, checks: 1, failed: 1, client });
       }
     }
   }

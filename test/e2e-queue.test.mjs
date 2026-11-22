@@ -4,6 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
+import { mergeFlowSeconds } from '../tools/lib/e2e-flows.mjs';
 import { orderUnits, simulateQueue, unitQueue, unitBoundS, laneSession, queueFailRows } from '../tools/lib/e2e-queue.mjs';
 
 const SRC = fs.readFileSync(new URL('../tools/e2e.mjs', import.meta.url), 'utf8');
@@ -179,4 +180,16 @@ test('wiring: the lead hands out units over IPC, the child asks with --queue, th
   assert.match(SRC, /console\.log\(`client c\$\{c\.k\} \(\$\{c\.sidecarPort\}\/\$\{c\.devPort\}, \$\{path\.relative\(ROOT, c\.gameDir\)\}\): ~\$\{c\.simulated\.seconds\}s recorded/);
   // a further client with nothing left to take isn't started
   assert.match(SRC, /if \(c\.k > 1 && queue\.size\(\) === 0\)/);
+});
+
+test('a failed unit\'s flow rows carry no time: the next run keeps their recorded seconds and LPT order', () => {
+  const now = clock();
+  const q = unitQueue(orderUnits([['slow']], { slow: 300 }), { now });
+  const c1 = session(q, 'c1', now);
+  c1.s.message({ type: 'next' });
+  c1.s.close(137);
+  const rows = queueFailRows({ client: 'c1', fails: c1.s.fails, taken: q.taken('c1'), summaryFlows: null });
+  assert.equal(rows.flows.length, 1);
+  assert.deepEqual(mergeFlowSeconds([{ seconds: { slow: 300 } }, { flows: rows.flows }]), { slow: 300 });
+  assert.match(SRC, /if \(Number\.isFinite\(r\.seconds\)\) times\[r\.name\]/);
 });

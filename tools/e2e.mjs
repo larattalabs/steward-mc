@@ -10537,7 +10537,8 @@ function recordRun(flowRows) {
   const at = new Date().toISOString();
   const byName = new Map(flowKeys.map((k) => [k.name, k.key]));
   for (const r of flowRows) {
-    times[r.name] = { seconds: r.seconds, at, mode, ...(r.client ? { client: r.client } : {}) };
+    // (E2E-QUEUE) a queue FAIL row has no time (null): the flow's last real time stays
+    if (Number.isFinite(r.seconds)) times[r.name] = { seconds: r.seconds, at, mode, ...(r.client ? { client: r.client } : {}) };
     if (r.failed === 0 && r.checks > 0 && byName.has(r.name)) passes[mode][r.name] = { at, ...byName.get(r.name) };
     else if (r.failed > 0) delete passes[mode][r.name];
   }
@@ -10874,7 +10875,7 @@ if (laneRuns) {
 for (const u of queueLeft) {
   for (const n of u.flows) {
     results.push({ check: `queue ${n}`, ok: false, why: `unit ${u.id} never run: no client was left to take it`, client: 'lead' });
-    flowTimes.push({ name: n, seconds: 0, load: null, checks: 1, failed: 1, client: 'lead' });
+    flowTimes.push({ name: n, seconds: null, load: null, checks: 1, failed: 1, client: 'lead' });
   }
 }
 const failed = results.filter((r) => !r.ok).length;
@@ -10903,7 +10904,7 @@ if (cleanup) {
 fs.writeFileSync(path.join(OUT, 'summary.json'), JSON.stringify({ mode, only, ...(fastTier ? { tier: 'fast' } : {}), skipped, ...(skipUnchanged ? { unchanged } : {}), ...(CLIENT ? { client: CLIENT } : {}), ...(laneRuns ? { clients: clientRows } : {}), ...(slotWait ? { slot: slotWait } : slot ? { slot: { slot: slot.slot ?? null, ticket: slot.ticket ?? null, ...(slot.off ? { off: true } : {}), ...(slot.inherited ? { inherited: true } : {}) } } : {}), at: new Date().toISOString(), seconds, failed, ...(cleanup ? { cleanup } : {}), sanitySeconds: laneRuns ? null : flowsAt ? Math.round((flowsAt - started) / 1000) : null, flows: flowTimes, results }, null, 2));
 if (!CLIENT) recordRun(flowTimes);
 if (laneRuns) {
-  const sum = flowTimes.reduce((a, f) => a + f.seconds, 0);
+  const sum = flowTimes.reduce((a, f) => a + (f.seconds ?? 0), 0);
   console.log(`clients: ${clientRows.map((c) => `${c.client} ${c.seconds}s (${c.flows.length} flows)`).join(', ')}; wall ${seconds}s for ${sum}s of flows`);
   for (const r of results.filter((x) => !x.ok)) console.log(`FAIL [${r.client}] ${r.check}: ${r.why}`);
 }
