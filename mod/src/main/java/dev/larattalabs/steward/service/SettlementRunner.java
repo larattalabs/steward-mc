@@ -3168,7 +3168,14 @@ public final class SettlementRunner {
 			Steward.LOGGER.info("module {} realise {} under {}: maxBill {}", settlement.id(), vPlanId, key, cap);
 			request = request.withMaxBill(cap);
 		}
-		api.regions().realise(request).whenComplete((id, err) -> ArchitectAccess.onServer(server, () -> realised(id, err, session)));
+		// (FENCE-TESTS-4) a throw on the call itself is answered as a failed realise (as sendApproved's is), never left in flight
+		java.util.concurrent.CompletableFuture<String> sent;
+		try {
+			sent = api.regions().realise(request);
+		} catch (RuntimeException | LinkageError e) {
+			sent = java.util.concurrent.CompletableFuture.failedFuture(e);
+		}
+		sent.whenComplete((id, err) -> ArchitectAccess.onServer(server, () -> realised(id, err, session)));
 	}
 
 	// ----------------------------------------------------------------- module lots (slice M3, docs/MODULES.md 4.2)
@@ -3395,16 +3402,38 @@ public final class SettlementRunner {
 				// held, saved with the build: the approval binds to exactly this bill (the quote, a terrain item up to its allowance), also after a restart.
 				// Asked again after a put-down refusal, it is never less than what was already approved, item by item
 				JsonObject shown = refusedAtPutDown ? dev.larattalabs.steward.module.ModuleBound.atLeast(allowed, now.bound()) : allowed;
-				moduleOrders = Map.of(lot, now.holding(shown));
-				persist();
+				// (FENCE-TESTS-4, persist before mutate) a hold that isn't saved is never put to the player: rolled back, the build stops as saved
+				if (!saveOrders(Map.of(lot, now.holding(shown)))) {
+					say("Not placed: the build could not be saved with the module's bill, so nothing is consumed.");
+					feed(new Pipeline.Cancel());
+					return;
+				}
 				feed(new Pipeline.HoldBill(why + " Nothing has been taken from the stockpile. The whole bill: " + dev.larattalabs.steward.module.ModuleBound.upTo(shown, terrain.keySet(), 1000)
 					+ ". Approve to build it with this bill (it becomes the bound: " + dev.larattalabs.steward.module.ModuleBound.CRASH_EXCEPTION + "), or cancel."));
 				return;
 			}
-			if (now.held() != null) { moduleOrders = Map.of(lot, now.holding(null)); persist(); }
+			// (FENCE-TESTS-4) a dropped hold that isn't saved goes no further: rolled back, the build stops as saved
+			if (now.held() != null && !saveOrders(Map.of(lot, now.holding(null)))) {
+				say("Not placed: the build could not be saved with the module's bill, so nothing is consumed.");
+				feed(new Pipeline.Cancel());
+				return;
+			}
 			quoteCleared = key;
 			realiseVillage();
 		}));
+	}
+
+	/**
+	 * (FENCE-TESTS-4) The module orders set to {@code next} and saved; a save that fails puts them back as they were, in the runner and in the shared
+	 * store (another build's save never writes the rejected ones). Whether it landed.
+	 */
+	private boolean saveOrders(Map<String, dev.larattalabs.steward.module.ModuleOrder> next) {
+		var before = moduleOrders;
+		moduleOrders = next;
+		if (persist()) return true;
+		moduleOrders = before;
+		if (alive() && settlement != null && state != null && plan != null) cache();
+		return false;
 	}
 
 	/**
@@ -4223,11 +4252,11 @@ public final class SettlementRunner {
 			if (billCapped(err) && moduleBuild() && state.phase() == Pipeline.Phase.PLACING) {
 				Steward.LOGGER.info("module {} realise {} refused at put-down: {}", settlement.id(), vPlanId, message(err));
 				// (QD-2) saved before the quote is asked for: a restart puts the next quote to the player too, never realises it on its own
-				moduleOrders = refusedAtPutDown(moduleOrders);
 				quoteCleared = null;
 				// (pin-073 batch review, P2) the refusal not saved: a restart would find the build placing as approved and could realise it on its own,
 				// so it is neither quoted again nor realised here; the build stops (nothing was written or taken), said
-				if (!persist()) {
+				// (FENCE-TESTS-4) and the unsaved refusal is rolled back, in the runner and the shared store: the build stops as saved
+				if (!saveOrders(refusedAtPutDown(moduleOrders))) {
 					say("Not placed: the materials needed went past " + dev.larattalabs.steward.module.ModuleBound.limitOf(moduleOrders.values())
 						+ ", and that could not be saved, so I won't ask again or build it. Nothing was taken from the stockpile; ask for it again.");
 					feed(new Pipeline.Cancel());

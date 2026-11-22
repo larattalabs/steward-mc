@@ -480,12 +480,15 @@ final class FakeArchitect {
 	 * (FENCE-TESTS-4) Architect's {@code Regions.realise} (a growth's revision, a district's or a plain village's region): recorded as sent (then
 	 * {@link #throwOn} may throw on the call). From materials ({@code Mode.CONSTRUCTION}), applied as it is sent: past its {@code maxBill} (the whole
 	 * put-down bill of its lots, item by item) it is refused ({@code BILL_CAP}), nothing written or drawn; else each lot's site takes its put-down bill
-	 * ({@link #putDown}) from {@link #ledger}. {@link #realiseFailure} refuses it instead; its answer is as {@link #realiseAnswer} says.
+	 * ({@link #putDown}) from {@link #ledger}. {@link #realiseFailure} refuses it instead; its answer is as {@link #realiseAnswer} says. Keyed: asked
+	 * again under a key it has, it answers that revision and draws nothing.
 	 */
 	private CompletableFuture<String> realise(dev.larattalabs.architect.api.RealiseRequest r) {
 		realises.add(r);
 		call("regions.realise " + r.planId() + " " + r.opKey());
 		if (realiseFailure != null) return CompletableFuture.failedFuture(realiseFailure);
+		// keyed: asked again under a key it has, the same revision (nothing drawn again)
+		if (r.opKey() != null && realisedByKey.containsKey(r.opKey())) return answerRealise(realisedByKey.get(r.opKey()));
 		if (r.mode() == dev.larattalabs.architect.api.Mode.CONSTRUCTION) {
 			Map<String, Integer> bill = new java.util.TreeMap<>();
 			for (String lot : r.lotEntries().keySet()) putDown.getOrDefault(lot, Map.of()).forEach((k, v) -> bill.merge(k, v, Integer::sum));
@@ -500,11 +503,16 @@ final class FakeArchitect {
 				if (!ledger.build(this, sid)) throw new IllegalStateException("FakeArchitect: the stockpile is short for " + lot + " (give the test more stock)");
 			}
 		}
+		if (r.opKey() != null) realisedByKey.put(r.opKey(), GROWN);
+		return answerRealise(GROWN);
+	}
+
+	private CompletableFuture<String> answerRealise(String id) {
 		return switch (realiseAnswer) {
-			case APPLY -> CompletableFuture.completedFuture(GROWN);
+			case APPLY -> CompletableFuture.completedFuture(id);
 			case HOLD -> {
 				var f = new CompletableFuture<String>();
-				held.add(() -> f.complete(GROWN));
+				held.add(() -> f.complete(id));
 				yield f;
 			}
 			case APPLY_THEN_LOSE -> CompletableFuture.failedFuture(new TimeoutException("the answer was lost"));

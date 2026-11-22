@@ -1404,4 +1404,44 @@ class ComposedPlacingCrashTest {
 		assertEquals(0, a.ledger.paid);
 		conserved();
 	}
+	@Test
+	void aPutDownRefusalWrittenThoughItsSaveFailedWithTheCancelUnsavedIsPutToThePlayerAfterTheCrash() throws IOException {
+		// (FENCE-TESTS-4; FENCE-TESTS-3's GPT P2) as above, but every write after the refusal's fails too, so the cancel's save never lands: the crash
+		// comes between the refusal's failed folder force and the cancel, and finds the refusal on disk, the build still to place. The resume's own quote is put to
+		// the player (refused at put-down), never realised on its own, and nothing is drawn
+		runner(BOUNDED);
+		hallPutDownPast();
+		a.quote = exact();
+		a.onCall = c -> {
+			if (!c.startsWith("regions.realiseApproved")) return;
+			DurableWrite.FAIL_NEXT.add(DurableWrite.TestFail.AFTER_RENAME);
+			for (int i = 0; i < 20; i++) DurableWrite.FAIL_NEXT.add(DurableWrite.TestFail.BEFORE_RENAME);
+		};
+		try (LogCapture log = LogCapture.open()) {
+			place();
+			assertTrue(ComposedRunnerOrderTest.said(log, "that could not be saved, so I won't ask again or build it"), log.lines.toString());
+		}
+		a.onCall = c -> {};
+		assertTrue(DurableWrite.FAIL_NEXT.size() < 20, "a write after the refusal's was reached");
+		assertEquals(1, a.approved.size(), a.calls + " " + tails());
+		assertTrue(orders().values().stream().noneMatch(ModuleOrder::refusedAtPutDown), "rolled back as saved");
+		assertEquals(Pipeline.Phase.READY_TO_PLACE, disk().state().phase(), "the cancel's save landed");
+		assertTrue(disk().moduleOrders().values().stream().allMatch(ModuleOrder::refusedAtPutDown), "the refusal is in the file: " + disk().moduleOrders());
+		assertEquals(0, a.ledger.paid);
+		conserved();
+		// the resume (crash() resyncs) finds the build still to place: it asks the player first, never realises on its own
+		crash();
+		assertEquals(Pipeline.Phase.AWAITING_PLACEMENT_APPROVAL, phase(), "realised on its own after the restart: " + a.calls + " " + tails());
+		assertEquals(1, a.approved.size(), "realised on its own after the restart: " + a.calls);
+		assertTrue(orders().values().stream().allMatch(ModuleOrder::refusedAtPutDown), "the refusal read back: " + orders());
+		// the player's approve: quoted again, the refusal puts the bill to the player once more (QD-2), still nothing realised or drawn
+		try (LogCapture log = LogCapture.open()) {
+			assertTrue(approve().startsWith("Approved"), tails());
+			assertTrue(ComposedRunnerOrderTest.said(log, ModuleBound.PUT_DOWN_REFUSED), "put to the player as refused at put-down: " + log.lines + " " + a.calls);
+		}
+		assertEquals(Pipeline.Phase.AWAITING_PLACEMENT_APPROVAL, phase(), "realised past a refusal without the player: " + a.calls + " " + tails());
+		assertEquals(1, a.approved.size(), "realised on its own after the restart: " + a.calls);
+		assertEquals(0, a.ledger.paid);
+		conserved();
+	}
 }
