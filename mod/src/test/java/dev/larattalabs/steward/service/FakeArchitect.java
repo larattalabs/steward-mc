@@ -251,10 +251,23 @@ final class FakeArchitect {
 	 * with a key is recorded, then throws that key's error, as an Architect that throws before answering would.
 	 */
 	final Map<String, Throwable> throwOn = new LinkedHashMap<>();
-	/** (FENCE-TESTS-3) The thread each recorded call ({@link #call}) was made on, in call order. */
+	/** (FENCE-TESTS-3) The thread each call in {@link #calls} was made on, index for index. */
 	final List<Thread> callThreads = new ArrayList<>();
 	final Map<String, Site> sites = new LinkedHashMap<>();
-	final List<String> calls = new ArrayList<>();
+	/** Every call, in order; (FENCE-TESTS-3) each one's thread is recorded beside it in {@link #callThreads}, whichever way it is recorded. */
+	final List<String> calls = new ArrayList<>() {
+		@Override
+		public boolean add(String line) {
+			callThreads.add(Thread.currentThread());
+			return super.add(line);
+		}
+
+		@Override
+		public void clear() {
+			callThreads.clear();
+			super.clear();
+		}
+	};
 	final Ledger ledger = new Ledger();
 	Answer undoAnswer = Answer.APPLY;
 	Answer removeAnswer = Answer.APPLY;
@@ -426,7 +439,6 @@ final class FakeArchitect {
 	/** (TESTABLE-ARCH) Records a call, then runs {@link #onCall} with it. */
 	private void call(String line) {
 		calls.add(line);
-		callThreads.add(Thread.currentThread());
 		onCall.accept(line);
 		for (var e : throwOn.entrySet()) if (line.startsWith(e.getKey())) sneaky(e.getValue());
 	}

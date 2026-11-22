@@ -1329,6 +1329,7 @@ class ComposedPlacingCrashTest {
 		drain();
 		assertEquals(FakeArchitect.REALISED, field("vRegionId"), tails());
 		assertEquals(FakeArchitect.REALISED, disk().vRegion());
+		assertEquals(a.calls.size(), a.callThreads.size(), "every call's thread recorded");
 		for (int i = 0; i < a.callThreads.size(); i++) assertSame(server, a.callThreads.get(i), "called off the server thread: " + a.calls.get(i));
 		conserved();
 	}

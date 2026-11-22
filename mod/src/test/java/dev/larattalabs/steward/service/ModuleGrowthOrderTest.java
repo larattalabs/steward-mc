@@ -63,6 +63,13 @@ class ModuleGrowthOrderTest {
 		SettlementRunner.useBuildsFileForTest(buildsFile);
 	}
 
+	/** (GPT P3) Nothing was thrown past the runner's steps but what needs the server this test has none of (a notice to the player). */
+	@AfterEach
+	void onlyServerlessTails() {
+		for (Throwable t : tails)
+			assertTrue(t instanceof NullPointerException && String.valueOf(t.getMessage()).contains("\"server\" is null"), "unexpected: " + tails);
+	}
+
 	@AfterEach
 	void tearDown() {
 		SettlementRunner.clearForTest();
@@ -176,9 +183,6 @@ class ModuleGrowthOrderTest {
 		assertEquals(150, atPrompt.get(0).held().get("minecraft:dirt").getAsInt(), "the bill shown is the one saved");
 		assertEquals(Pipeline.Phase.AWAITING_PLACEMENT_APPROVAL, phase());
 		assertEquals(0, a.count("regions.planByKey"), "went on past a hold: " + a.calls);
-		// after the hold, only its notice to the player (which needs the server) was left
-		for (Throwable t : tails)
-			assertTrue(t instanceof NullPointerException && String.valueOf(t.getMessage()).contains("\"server\" is null"), "unexpected: " + tails);
 	}
 
 	@Test
