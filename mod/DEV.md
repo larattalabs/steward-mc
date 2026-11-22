@@ -199,7 +199,8 @@ line (action, reason, write box).
 - **Another checkout's ports:** set `STEWARD_PORT` / `STEWARD_DEV_PORT` (e.g. 8598/8599).
 - **A quit waits for removals** (E2E-QUIT-GRACE, 2026-11-22). Before each `dev.quit`, `quit()` waits up to 60 s for the removals pending in
   that client's session: regions in `REMOVING` (`dev.region.list`), and site groups whose `Removing group gN` line in the game log has no
-  `Removal done|stopped of group gN` or `Removing group gN failed` yet (street towns have no region). Batch 094 quit 3 s into rg6's removal, so
+  `Removal done|stopped of group gN` or `Removing group gN failed` yet (street towns have no region; a list that fails or times out leaves the
+  log to decide). Batch 094 quit 3 s into rg6's removal, so
   its kept world looked like a stalled removal. Each quit prints `quit-grace: ...` (none pending, waited N s, or a warning). A removal still
   pending at the bound goes into summary.json `warnings` (with the flow), never a FAIL, and the client quits anyway. A flow that cuts a
   removal on purpose passes `{ cut: true }` (the survival-quarter resume check). `tools/lib/quit-grace.mjs`, `test/quit-grace.test.mjs`.

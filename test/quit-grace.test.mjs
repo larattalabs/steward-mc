@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { openGroups, pendingRemovals, graceBeforeQuit, QUIT_GRACE_MS } from '../tools/lib/quit-grace.mjs';
+import { openGroups, pendingRemovals, graceBeforeQuit, readPending, QUIT_GRACE_MS } from '../tools/lib/quit-grace.mjs';
 
 /** A fake clock: sleep moves it on, so a 60 s bound runs at once. */
 const clock = () => {
@@ -90,4 +90,17 @@ test('e2e.mjs: quit() runs the grace and records it; the deliberate mid-removal 
   assert.match(src, /await restartClient\(\{ cut: true \}\);\n\s+await cmd\('\/architect survival on'\);\n\s+await cmd\('\/gamemode creative @p'\);\n\s+\/\/ the player steps out after the restart: Architect's resumed removal/,
     'the flow that restarts mid-removal on purpose opts out');
   assert.match(src, /warnings: \[\.\.\.warnings\]/, 'summary.json carries the warnings');
+});
+
+test('region state unreachable (the list throws, times out or is refused): the log\'s open groups still decide; only a gone client reads as nothing', async () => {
+  const throws = async () => { throw new Error('timeout after 10000 ms'); };
+  assert.deepEqual(await readPending({ listRegions: throws, logText: LOG_094 }), [{ kind: 'group', id: 'g5' }]);
+  assert.deepEqual(await readPending({ listRegions: async () => ({ ok: false, error: 'busy' }), logText: () => LOG_094 }), [{ kind: 'group', id: 'g5' }]);
+  assert.deepEqual(await readPending({ listRegions: throws, logText: '' }), []);
+  assert.equal(await readPending({ listRegions: throws, logText: LOG_094, clientGone: () => true }), null);
+  // so a grace over an unreachable list still waits for the logged removal, and warns at the bound
+  const c = clock();
+  const r = await graceBeforeQuit(() => readPending({ listRegions: throws, logText: LOG_094 }), { ...c, ms: 5000 });
+  assert.equal(r.outcome, 'timeout');
+  assert.deepEqual(r.pending, ['group g5']);
 });

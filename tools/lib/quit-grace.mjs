@@ -38,6 +38,24 @@ export function pendingRemovals({ regions = null, logText = '' } = {}) {
   return out;
 }
 
+/**
+ * One read for graceBeforeQuit: the pending list, or null only when the client is gone (`clientGone()`). A region list that fails, times out or is
+ * refused (the server thread busy with a large removal is when that happens) reads as no region state, and the log's open groups still count: a
+ * region's removal logs its "Removing group" line too.
+ */
+export async function readPending({ listRegions, logText, clientGone = () => false }) {
+  if (clientGone()) return null;
+  let regions = null;
+  try {
+    const rl = await listRegions();
+    if (rl && rl.ok !== false && Array.isArray(rl.regions)) regions = rl.regions;
+  } catch {
+    // unreachable state: the log alone decides
+  }
+  if (clientGone()) return null;
+  return pendingRemovals({ regions, logText: typeof logText === 'function' ? logText() : logText });
+}
+
 export const nameOf = (p) => p.kind === 'region' ? `region ${p.id}${p.group ? ` (group ${p.group})` : ''}` : `group ${p.id}`;
 
 /**
@@ -46,7 +64,7 @@ export const nameOf = (p) => p.kind === 'region' ? `region ${p.id}${p.group ? ` 
  *  - 'none': nothing pending at the first read (no wait at all);
  *  - 'done': what was pending ended within the bound;
  *  - 'timeout': still pending at the bound (`pending` names it; a warning, the caller quits anyway);
- *  - 'unreadable': the first read failed (the client is going or gone): no wait, a note.
+ *  - 'unreadable': the first read failed (the client is gone: readPending's null): no wait, a note.
  */
 export async function graceBeforeQuit(read, { ms = QUIT_GRACE_MS, everyMs = 1000, sleep = (t) => new Promise((r) => setTimeout(r, t)), now = Date.now } = {}) {
   const t0 = now();
@@ -69,7 +87,7 @@ export async function graceBeforeQuit(read, { ms = QUIT_GRACE_MS, everyMs = 1000
 function verdict(outcome, waitedMs, pending) {
   const s = (waitedMs / 1000).toFixed(1);
   const line = outcome === 'none' ? 'quit-grace: no removal pending'
-    : outcome === 'unreadable' ? 'quit-grace: removal state unreadable (client going); quit at once'
+    : outcome === 'unreadable' ? 'quit-grace: the client is gone; nothing to wait for'
     : outcome === 'done' ? `quit-grace: waited ${s} s for pending removals to finish`
     : `quit-grace: WARNING ${pending.join(', ')} still removing after ${s} s; quitting anyway (the kept world may show a cut removal)`;
   return { outcome, waitedMs, pending, line };

@@ -18,7 +18,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { regionUntilBy, readSince } from './lib/region-wait.mjs';
-import { graceBeforeQuit, pendingRemovals } from './lib/quit-grace.mjs';
+import { graceBeforeQuit, readPending } from './lib/quit-grace.mjs';
 import { pickFlows, groupFlows, packFlows, codeBlocks, closureOf, fixtureRefs, hashPaths, hashText, hashLib, skipDecision, applySkips, isStrict, mergeFlowSeconds, tierSkips } from './lib/e2e-flows.mjs';
 import { useRamTmp, ramSidecarData, RAM_TMP } from './lib/ram-tmp.mjs';
 import { sweepStale, cleanupOwned, keptBounds } from './lib/tmp-owner.mjs';
@@ -252,11 +252,9 @@ async function herd() {
  */
 async function quitGrace() {
   const d = dev;
-  const read = async () => {
-    const rl = await d.request('dev.region.list', {}, { timeoutMs: 10_000 });
-    if (rl?.ok === false) throw new Error(rl.error ?? 'dev.region.list refused');
-    return pendingRemovals({ regions: rl?.regions ?? null, logText: readSince(LOG, 0) });
-  };
+  // a region list that fails or is refused leaves the log's open groups to decide; only a client that has exited reads as nothing to wait for
+  const read = () => readPending({ listRegions: () => d.request('dev.region.list', {}, { timeoutMs: 10_000 }), logText: () => readSince(LOG, 0),
+    clientGone: () => dev !== d || (client != null && client.exitCode !== null) });
   const g = await graceBeforeQuit(read);
   console.log(g.line);
   if (g.outcome === 'timeout') warnings.push({ kind: 'quit-grace', flow: flowNow, pending: g.pending, waitedS: Math.round(g.waitedMs / 1000), message: g.line });
