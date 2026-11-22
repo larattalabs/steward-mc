@@ -4964,9 +4964,8 @@ public final class SettlementRunner {
 		}
 		// a stage or terrain wait (built from materials: a part waits for the parts it stands on, or for its land): said once, what it waits for named
 		// in the steward's words (a hidden part by its host)
-		// the waiting item in words: a lot's role, else its part (typed), else the street or its key
-		String role = extString(e.ext(), "steward_mc:role");
-		String what = role != null ? role : part != null ? part : BatchPlanner.isStreet(e.itemKey()) ? "street" : e.itemKey().replace('_', ' ');
+		// the waiting item in words (WORDING-2: never what it waits on)
+		String what = waitSubject(extString(e.ext(), "steward_mc:role"), e.ext(), e.itemKey(), plan, settlement.name());
 		// (slice 8aS, Architect 8a ST) a part waiting for the ground under it, staged terrain built over time: in the steward's words, once per wait
 		var terrain = TerrainBuild.terrainWait(e.ext());
 		if (terrain != null) {
@@ -4987,10 +4986,10 @@ public final class SettlementRunner {
 		}
 		String in = e.message().replaceFirst("(?s).*in the box: ", "").replaceFirst("\\s*\\(.*", "").strip();
 		switch (e.reason().get()) {
-			case PLAYER_IN_BOX -> say("The " + what + " waits: someone is standing on its lot. Step off it and it goes up.");
-			case OCCUPIED -> say("The " + what + " waits: " + (in.isEmpty() ? "something is in its lot" : in + " is in its lot") + ". Move it out and it goes up"
+			case PLAYER_IN_BOX -> say(MaterialRequests.theName(what) + " waits: someone is standing on its lot. Step off it and it goes up.");
+			case OCCUPIED -> say(MaterialRequests.theName(what) + " waits: " + (in.isEmpty() ? "something is in its lot" : in + " is in its lot") + ". Move it out and it goes up"
 				+ " (Architect waits up to 10 minutes).");
-			case NOT_LOADED -> say("The " + what + " waits for its ground to load: come nearer to it.");
+			case NOT_LOADED -> say(MaterialRequests.theName(what) + " waits for its ground to load: come nearer to it.");
 			default -> {
 			}
 		}
@@ -5074,12 +5073,48 @@ public final class SettlementRunner {
 	static @org.jspecify.annotations.Nullable String stageWait(@org.jspecify.annotations.Nullable ItemWait w, String what,
 		@org.jspecify.annotations.Nullable String waitsOn) {
 		if (w == null || w.reason() == null) return null;
+		String subject = MaterialRequests.theName(MaterialRequests.bare(what).replaceFirst("(?i)^lot\\s+", ""));
 		return switch (w.reason()) {
-			case dev.larattalabs.architect.api.BuildStatus.STAGE -> "The " + what + " waits for " + (waitsOn == null || waitsOn.isBlank() ? "an earlier part"
-				: "the " + waitsOn) + " to be built.";
-			case dev.larattalabs.architect.api.BuildStatus.TERRAIN -> "The " + what + " waits for its land to be shaped.";
+			// (WORDING-2) one name, said once: a part waiting on another of its own targets (a river's next stage) waits for an earlier part of itself
+			case dev.larattalabs.architect.api.BuildStatus.STAGE -> subject + " waits for " + (waitsOn == null || waitsOn.isBlank() ? "an earlier part"
+				: sameThing(what, waitsOn) ? "an earlier part of itself" : "the " + MaterialRequests.bare(waitsOn)) + " to be built.";
+			case dev.larattalabs.architect.api.BuildStatus.TERRAIN -> subject + " waits for its land to be shaped.";
 			default -> null;
 		};
+	}
+
+	/** (WORDING-2) Whether two names say one thing: compared without case, a leading article or "lot", underscores or extra spaces. Pure. */
+	static boolean sameThing(String a, String b) {
+		return nameKey(a).equals(nameKey(b));
+	}
+
+	private static String nameKey(String name) {
+		return MaterialRequests.bare(name.replace('_', ' ')).replaceFirst("(?i)^lot\\s+", "").replaceAll("\\s+", " ").strip().toLowerCase(java.util.Locale.ROOT);
+	}
+
+	/**
+	 * (WORDING-2) A waiting batch item in words: its lot's role ({@code role}); a gate mechanism ({@code mech:<id>}) by its building ({@link
+	 * MaterialRequests#mechWords}); its own part (ext {@code architect_mc:part}, else the first of {@code architect_mc:parts}) or its wait's waiter;
+	 * a lot by its plan lot ({@link MaterialRequests#lotWords}); else the street, or its key in words without its kind. Never the part it waits on:
+	 * Architect's typed {@code ItemEvent.part} falls back to {@code waitsFor.part}, the blocker's, which said "The Curtain wall waits for the Curtain
+	 * wall to be built" for a wall tower. Pure.
+	 */
+	static String waitSubject(@org.jspecify.annotations.Nullable String role, com.google.gson.@org.jspecify.annotations.Nullable JsonObject ext, String itemKey,
+		@org.jspecify.annotations.Nullable String plan, String fallback) {
+		if (role != null && !role.isBlank()) return role;
+		if (itemKey.startsWith("mech:")) return MaterialRequests.mechWords(plan, itemKey.substring(5));
+		String own = ext != null && ext.get("architect_mc:part") instanceof com.google.gson.JsonPrimitive p ? p.getAsString()
+			: ext != null && ext.get("architect_mc:parts") instanceof com.google.gson.JsonArray a && !a.isEmpty() && a.get(0).isJsonPrimitive() ? a.get(0).getAsString() : null;
+		if (own == null && ext != null && ext.get("architect_mc:waitsFor") instanceof JsonObject w && w.get("waiter") instanceof com.google.gson.JsonPrimitive p)
+			own = p.getAsString();
+		if (own != null && !own.isBlank()) {
+			if (own.startsWith("lot ")) return MaterialRequests.lotWords(plan, own.substring(4).strip());
+			String said = MaterialRequests.partWords(plan, own, fallback);
+			if (said != null) return said;
+		}
+		if (itemKey.startsWith("lot:")) return MaterialRequests.lotWords(plan, itemKey.substring(4));
+		if (BatchPlanner.isStreet(itemKey)) return "street";
+		return itemKey.replaceFirst("^[a-z]+:", "").replace('_', ' ');
 	}
 
 	/**
@@ -5094,7 +5129,7 @@ public final class SettlementRunner {
 				// (batch-080 merge) WORDS-079's signature: a pure item wait reads no stockpile, so no full-pile claim (Pile.UNREAD; the id is only for that line)
 				w.moreUnits()), MaterialRequests.Pile.UNREAD, "");
 			case dev.larattalabs.architect.api.BuildStatus.FILL_BLOCKED, dev.larattalabs.architect.api.BuildStatus.TXN_HELD,
-				dev.larattalabs.architect.api.BuildStatus.APPROVAL -> "The " + what + " is " + dev.larattalabs.steward.view.SettlementView.statusWords(
+				dev.larattalabs.architect.api.BuildStatus.APPROVAL -> MaterialRequests.theName(what) + " is " + dev.larattalabs.steward.view.SettlementView.statusWords(
 					dev.larattalabs.architect.api.BuildStatus.WAITING, w.reason())[1] + ".";
 			default -> null;
 		};

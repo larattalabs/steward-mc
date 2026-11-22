@@ -125,9 +125,19 @@ public final class MaterialRequests {
 	 * already has it ("the great oak"). Every line here that names a part goes through it. Pure.
 	 */
 	static String theName(String name) {
+		return "The " + bare(name);
+	}
+
+	/**
+	 * (WORDING-2) A name without its leading article ("the", "a" or "an", whole words only): "stone cottage" from "A stone cottage", "village" from "the
+	 * village". A sentence puts its own article in front, once. Pure.
+	 */
+	static String bare(String name) {
 		String n = name.strip();
-		if (n.regionMatches(true, 0, "the ", 0, 4)) n = n.substring(4).stripLeading();
-		return "The " + n;
+		for (String a : new String[] {"the ", "an ", "a "}) {
+			if (n.length() > a.length() && n.regionMatches(true, 0, a, 0, a.length())) return n.substring(a.length()).stripLeading();
+		}
+		return n;
 	}
 
 	/**
@@ -537,7 +547,42 @@ public final class MaterialRequests {
 			if (Secrets.of(plan).hides(part)) return hostName(plan, part, s.name());
 			return partName(plan, part);
 		}
-		return Updates.lotOf(v);
+		// (WORDING-2) a lot named only by its id ("gatehouse 1"): its plan lot's label, role or type ("Main gatehouse")
+		String named = Updates.lotOf(v), lot = Updates.lotIdOf(v);
+		if (lot != null && (named.equals(lot) || named.equals(lot.replace('_', ' ')))) return lotWords(PlanStore.get(s.id()).map(PlanStore.Entry::plan).orElse(null), lot);
+		return named;
+	}
+
+	/**
+	 * (WORDING-2) A plan lot in words: its label, role or type ("Main gatehouse"), else its id in words ("gatehouse 1"); never "lot gatehouse 1". Pure.
+	 */
+	static String lotWords(@org.jspecify.annotations.Nullable String planJson, String lot) {
+		String said = lotLabel(planJson, lot);
+		return said != null ? said : lot.replace('_', ' ');
+	}
+
+	/** A plan lot's label, role or type in words, or null when the plan has no such lot (or none to read). */
+	private static @org.jspecify.annotations.Nullable String lotLabel(@org.jspecify.annotations.Nullable String planJson, String lot) {
+		if (planJson == null) return null;
+		try {
+			var plan = com.google.gson.JsonParser.parseString(planJson).getAsJsonObject();
+			for (var l : dev.larattalabs.steward.gateway.PPlan.lots(plan)) {
+				if (!lot.equals(l.get("id").getAsString())) continue;
+				for (String k : new String[] {"label", "role", "type"}) if (l.has(k) && l.get(k).isJsonPrimitive()) return l.get(k).getAsString().replace('_', ' ');
+			}
+		} catch (RuntimeException e) {
+			// an unreadable plan: no label
+		}
+		return null;
+	}
+
+	/**
+	 * (WORDING-2) A gate mechanism ({@code mech:<id>}) in words: a lot's ("Main gatehouse's gate"), else its own part's words ("east gate"); never
+	 * its item key. Pure.
+	 */
+	static String mechWords(@org.jspecify.annotations.Nullable String planJson, String id) {
+		String lot = lotLabel(planJson, id);
+		return lot != null ? lot + "'s gate" : partName(planJson, id);
 	}
 
 	/**
@@ -553,10 +598,8 @@ public final class MaterialRequests {
 			if (form == null) form = PendingOffers.partOf(plan, part.replaceFirst(":.*$", "")).orElse(null);
 			String host = form != null && form.has("host") && form.get("host").isJsonPrimitive() ? form.get("host").getAsString() : null;
 			if (host == null) return fallback;
-			for (var lot : dev.larattalabs.steward.gateway.PPlan.lots(plan)) {
-				if (!host.equals(lot.get("id").getAsString())) continue;
-				for (String k : new String[] {"label", "role", "type"}) if (lot.has(k) && lot.get(k).isJsonPrimitive()) return lot.get(k).getAsString().replace('_', ' ');
-			}
+			String lot = lotLabel(planJson, host);
+			if (lot != null) return lot;
 			var other = PendingOffers.partOf(plan, host).orElse(null);
 			if (other != null && other.has("label") && other.get("label").isJsonPrimitive()) return other.get("label").getAsString();
 			return host.replace('_', ' ');
