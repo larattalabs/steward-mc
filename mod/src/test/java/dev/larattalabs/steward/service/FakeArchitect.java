@@ -246,6 +246,13 @@ final class FakeArchitect {
 	String realiseOwner = "owner";
 	/** (TESTABLE-ARCH) Run with each call's line as it is recorded (before it is answered). */
 	java.util.function.Consumer<String> onCall = c -> {};
+	/**
+	 * (FENCE-TESTS-3) Calls that throw synchronously (Architect's API failing on the call itself, not through its future): a call whose line starts
+	 * with a key is recorded, then throws that key's error, as an Architect that throws before answering would.
+	 */
+	final Map<String, Throwable> throwOn = new LinkedHashMap<>();
+	/** (FENCE-TESTS-3) The thread each recorded call ({@link #call}) was made on, in call order. */
+	final List<Thread> callThreads = new ArrayList<>();
 	final Map<String, Site> sites = new LinkedHashMap<>();
 	final List<String> calls = new ArrayList<>();
 	final Ledger ledger = new Ledger();
@@ -336,6 +343,22 @@ final class FakeArchitect {
 				}
 				yield quote == null ? CompletableFuture.failedFuture(new ArchitectRefused(Reason.SITE_BUSY, "no quote")) : CompletableFuture.completedFuture(quote);
 			}
+			// (FENCE-TESTS-3) a module growth's read-only quote of its plan ({@code Regions.quote}): answered as {@code quoteApproved} is, with {@link #quote}
+			case "quote" -> {
+				call("regions.quote " + a[0] + " " + a[1]);
+				if (quoteHold) {
+					var f = new CompletableFuture<dev.larattalabs.architect.api.Quote>();
+					var q = quote;
+					held.add(() -> f.complete(q));
+					yield f;
+				}
+				yield quote == null ? CompletableFuture.failedFuture(new ArchitectRefused(Reason.SITE_BUSY, "no quote")) : CompletableFuture.completedFuture(quote);
+			}
+			// (FENCE-TESTS-3) a growth's plan found by its key: none (the growth plan can't be read back)
+			case "planByKey" -> {
+				call("regions.planByKey " + a[0] + " " + a[1]);
+				yield Optional.empty();
+			}
 			case "realiseApproved" -> realiseApproved((dev.larattalabs.architect.api.ApprovedRealise) a[0]);
 			case "realiseByKey" -> {
 				call("regions.realiseByKey " + a[1]);
@@ -403,7 +426,14 @@ final class FakeArchitect {
 	/** (TESTABLE-ARCH) Records a call, then runs {@link #onCall} with it. */
 	private void call(String line) {
 		calls.add(line);
+		callThreads.add(Thread.currentThread());
 		onCall.accept(line);
+		for (var e : throwOn.entrySet()) if (line.startsWith(e.getKey())) sneaky(e.getValue());
+	}
+
+	@SuppressWarnings("unchecked")
+	private static <T extends Throwable> void sneaky(Throwable t) throws T {
+		throw (T) t;
 	}
 
 	/**

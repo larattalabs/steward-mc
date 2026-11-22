@@ -1123,4 +1123,284 @@ class ComposedPlacingCrashTest {
 		assertEquals(0, a.ledger.paid);
 		conserved();
 	}
+
+	// ------------------------------------------------------------------ the re-ask driven in one session (FENCE-TESTS-3, FENCE-TESTS' GPT P2 a)
+
+	static final String HOLD_WORDS = ComposedRunnerOrderTest.HOLD_WORDS;
+
+	/** The hall's put-down bill past its measured bound (100 planks): Architect refuses the realise at put-down ({@code BILL_CAP lot:hall_1}). */
+	void hallPutDownPast() {
+		a.putDown.put(HALL, Map.of("minecraft:oak_planks", 105, "minecraft:cobblestone", 41, "minecraft:iron_ingot", 41, "minecraft:wheat", 41, "minecraft:coal", 41));
+	}
+
+	@Test
+	void aPutDownRefusalIsQuotedAgainAndPutToThePlayerInTheSameSessionOnlyOnceSaved() throws IOException {
+		// refused at put-down from READY_TO_PLACE: the refusal saved, then the runner's own realise (the design group, composedReady) quotes again; that
+		// answer (Architect's real bill, 105 planks, within nothing approved yet) is put to the player as a hold, saved first; nothing realised again
+		runner(BOUNDED);
+		hallPutDownPast();
+		a.quote = exact();
+		List<BuildStore.Saved> atRequote = new ArrayList<>(), atPrompt = new ArrayList<>();
+		a.onCall = c -> {
+			if (c.startsWith("regions.realiseApproved")) a.quote = hallPlanks(105);
+			if (c.startsWith("regions.quoteApproved") && a.count("regions.realiseApproved") > 0) atRequote.add(disk());
+		};
+		try (LogCapture log = LogCapture.open()) {
+			log.onLine = l -> { if (l.startsWith("settlement: ") && l.contains(HOLD_WORDS)) atPrompt.add(disk()); };
+			place();
+			assertTrue(log.has("realise refused at put-down"), "reached the refusal: " + log.lines);
+		}
+		a.onCall = c -> {};
+		assertEquals(1, a.approved.size(), "realised once: " + a.calls + " " + tails());
+		assertEquals(0, a.ledger.paid, "refused: nothing drawn");
+		int refusedAt = indexOf(a.calls, "regions.realiseApproved");
+		var after = a.calls.subList(refusedAt + 1, a.calls.size());
+		assertTrue(after.contains("designs.group grp_1"), "the re-ask went on past the design group: " + after);
+		assertEquals("regions.quoteApproved " + SHA + " " + new TreeMap<>(ENTRIES), after.get(indexOf(after, "regions.quoteApproved")), "quoted again: " + after);
+		// the refusal was on disk when it was quoted again, the hold when it was put to the player
+		assertEquals(1, atRequote.size(), a.calls.toString());
+		assertTrue(atRequote.get(0).moduleOrders().values().stream().allMatch(ModuleOrder::refusedAtPutDown), "quoted again before the refusal was saved");
+		assertEquals(1, atPrompt.size(), "the hold was put to the player once: " + a.calls + " " + tails());
+		assertTrue(atPrompt.get(0).moduleOrders().values().stream().allMatch(o -> o.held() != null && o.refusedAtPutDown()), "asked before the hold was saved: "
+			+ atPrompt.get(0).moduleOrders());
+		assertEquals(Pipeline.Phase.AWAITING_PLACEMENT_APPROVAL, phase());
+		assertTrue(((Pipeline.State) field("state")).heldNote().startsWith(ModuleBound.PUT_DOWN_REFUSED), ((Pipeline.State) field("state")).heldNote());
+		assertEquals(105, orders().get(HALL).held().get("minecraft:oak_planks").getAsInt(), "the bill shown is Architect's");
+		for (var e : orders().entrySet()) for (var b : BOUNDED.get(e.getKey()).bound().entrySet())
+			assertTrue(e.getValue().held().get(b.getKey()).getAsInt() >= b.getValue().getAsInt(), "shown less than approved: " + e.getKey() + " " + b.getKey());
+		conserved();
+
+		// the player approves the bill shown: quoted again, within it, realised under it, drawn exactly once, placed, logged and undone
+		a.quote = hallPlanks(105);
+		assertTrue(approve().startsWith("Approved"), tails());
+		assertEquals(2, a.approved.size(), a.calls + " " + tails());
+		assertEquals(105, a.approved.get(1).maxBillPerLot().get(HALL).get("minecraft:oak_planks"), "sent under the approved bill");
+		assertEquals(105, drawn(HALL).get("minecraft:oak_planks"));
+		assertEquals(FakeArchitect.REALISED, field("vRegionId"));
+		conserved();
+		placedAndLogged(false);
+		undoneBalances();
+	}
+
+	@Test
+	void aReaskedHoldWhoseWriteFailsIsNeverPutAndNeverRealisesOnItsOwn() throws IOException {
+		for (var fail : List.of(DurableWrite.TestFail.BEFORE_RENAME, DurableWrite.TestFail.AFTER_RENAME)) {
+			runner(BOUNDED);
+			a.approved.clear();
+			a.calls.clear();
+			hallPutDownPast();
+			a.quote = exact();
+			// the re-quote's answer is the next write after it is asked (the bounds were saved before it): the hold's save fails
+			a.onCall = c -> { if (c.startsWith("regions.quoteApproved") && a.count("regions.realiseApproved") > 0) DurableWrite.FAIL_NEXT.add(fail); };
+			try (LogCapture log = LogCapture.open()) {
+				place();
+				assertTrue(ComposedRunnerOrderTest.said(log, "could not be saved with its working modules' bills"), fail + ": reached the hold's save: " + log.lines);
+				assertFalse(ComposedRunnerOrderTest.said(log, HOLD_WORDS), fail + ": put to the player unsaved: " + log.lines);
+			}
+			a.onCall = c -> {};
+			assertEquals(2, a.count("regions.quoteApproved"), fail + ": quoted again " + a.calls);
+			assertNotEquals(Pipeline.Phase.AWAITING_PLACEMENT_APPROVAL, phase(), fail.toString());
+			assertTrue(orders().values().stream().allMatch(o -> o.held() == null && o.refusedAtPutDown()), fail + ": the hold rolled back to the saved refusal: " + orders());
+			assertEquals(1, a.approved.size(), fail + " " + a.calls);
+			assertEquals(0, a.ledger.paid);
+			// whatever the file holds, the restart never realises on its own
+			a.quote = exact();
+			crash();
+			place();
+			assertEquals(1, a.approved.size(), fail + ": realised on its own after the restart: " + a.calls + " " + tails());
+			assertEquals(0, a.ledger.paid);
+			conserved();
+			SettlementRunner.clearForTest();
+			a.putDown.put(HALL, Map.of("minecraft:oak_planks", 90, "minecraft:cobblestone", 41, "minecraft:iron_ingot", 41, "minecraft:wheat", 41, "minecraft:coal", 41));
+		}
+	}
+
+	// ------------------------------------------------------------------ synchronous throws (FENCE-TESTS' GPT P2 b)
+
+	/** Architect's API failing on the call itself: an unchecked error and a linkage error (an Architect older than the API Steward was built on). */
+	static List<Throwable> syncThrows() {
+		return List.of(new IllegalStateException("SYNC-THROW the helper is gone"), new NoSuchMethodError("SYNC-THROW Regions.quoteApproved"));
+	}
+
+	@Test
+	void aQuoteThatThrowsOnTheCallStopsTheBuildAndSendsNothing() throws IOException {
+		for (Throwable t : syncThrows()) {
+			runner(BOUNDED);
+			a.calls.clear();
+			a.throwOn.put("regions.quoteApproved", t);
+			try (LogCapture log = LogCapture.open()) {
+				place();
+				assertTrue(ComposedRunnerOrderTest.said(log, "the bill couldn't be quoted"), t + ": " + log.lines + " " + tails());
+			}
+			assertEquals(1, a.count("regions.quoteApproved"), t + ": the quote was asked " + a.calls);
+			assertFalse((boolean) field("moduleBusy"), t + ": left busy");
+			assertNotEquals(Pipeline.Phase.READY_TO_PLACE, phase(), t + ": not stopped");
+			assertEquals(0, a.count("regions.realiseApproved"));
+			assertEquals(0, a.ledger.paid);
+			crash();
+			place();
+			assertEquals(0, a.count("regions.realiseApproved"), t + ": realised after the restart");
+			conserved();
+			a.throwOn.clear();
+			SettlementRunner.clearForTest();
+		}
+	}
+
+	@Test
+	void aRealiseThatThrowsOnTheCallIsAnsweredAsARefusalNeverLeftInFlight() throws IOException {
+		// (FENCE-TESTS-3 fix) sendApproved called realiseApproved with nothing around it: a throw on the call escaped the runner's step with the realise
+		// marked in flight, so the build hung placing (a later realiseVillage returns on queueInFlight) and the player was never told
+		for (Throwable t : syncThrows()) {
+			runner(BOUNDED);
+			a.approved.clear();
+			a.calls.clear();
+			a.quote = exact();
+			a.throwOn.put("regions.realiseApproved", t);
+			try (LogCapture log = LogCapture.open()) {
+				place();
+				assertTrue(ComposedRunnerOrderTest.said(log, "Architect could not place the village"), t + ": the player is told: " + log.lines + " " + tails());
+			}
+			assertEquals(1, a.approved.size(), t + ": the realise was asked " + a.calls);
+			assertFalse((boolean) field("queueInFlight"), t + ": left in flight");
+			assertNotEquals(Pipeline.Phase.READY_TO_PLACE, phase(), t + ": not stopped");
+			assertEquals(0, a.ledger.paid);
+			conserved();
+			a.throwOn.clear();
+			SettlementRunner.clearForTest();
+		}
+	}
+
+	@Test
+	void anArtifactReadThatThrowsStopsTheStepBeforeAnythingChanges() throws IOException {
+		// composedReady reads the approved artifact first: a throw there leaves the runner's step (its caller logs it) before anything is saved, quoted
+		// or sent, and the build as it was (the next placing step reads it again)
+		runner(BOUNDED);
+		var before = disk();
+		a.throwOn.put("regions.artifact", new IllegalStateException("SYNC-THROW artifact"));
+		place();
+		assertEquals(1, tails.size(), a.calls.toString());
+		assertTrue(String.valueOf(tails.get(0).getMessage()).contains("SYNC-THROW"), tails());
+		tails.clear();
+		assertEquals(Pipeline.Phase.READY_TO_PLACE, phase());
+		assertFalse((boolean) field("queueInFlight"));
+		assertFalse((boolean) field("moduleBusy"));
+		assertEquals(0, a.count("regions.quoteApproved"));
+		assertEquals(0, a.count("regions.realiseApproved"));
+		assertEquals(before.moduleOrders(), disk().moduleOrders());
+		assertEquals(before.state().phase(), disk().state().phase());
+		// Architect back: the same step goes on as usual
+		a.throwOn.clear();
+		a.quote = exact();
+		place();
+		assertEquals(1, a.approved.size(), a.calls + " " + tails());
+		assertEquals(FakeArchitect.REALISED, field("vRegionId"));
+		conserved();
+	}
+
+	// ------------------------------------------------------------------ thread affinity (FENCE-TESTS' GPT P3 c)
+
+	@Test
+	void architectsAnswersOnItsOwnThreadAreActedOnOnlyOnTheServerThread() throws Exception {
+		// Architect answers on its own threads: each answer only hands its work to the server (ArchitectAccess.onServer); nothing of the runner moves,
+		// and Architect is never called, until the server runs it
+		runner(BOUNDED);
+		Thread server = Thread.currentThread();
+		a.quote = exact();
+		a.quoteHold = true;
+		a.realiseAnswer = FakeArchitect.Answer.HOLD;
+		place();
+		assertEquals(1, a.held.size(), "the quote is in flight: " + a.calls);
+		assertTrue((boolean) field("moduleBusy"));
+		int calls = a.calls.size();
+		var ordersBefore = orders();
+		answerOffThread();
+		assertEquals(calls, a.calls.size(), "Architect called from its own answer's thread: " + a.calls);
+		assertTrue((boolean) field("moduleBusy"), "the answer was acted on off the server thread");
+		assertSame(ordersBefore, orders());
+		assertEquals(1, a.serverQueue.size(), "the answer handed to the server");
+		drain();
+		assertEquals(1, a.approved.size(), "the server ran it: " + a.calls + " " + tails());
+		assertEquals(1, a.held.size(), "the realise is in flight");
+		assertTrue((boolean) field("queueInFlight"));
+		answerOffThread();
+		assertNull(field("vRegionId"), "the realise's answer was acted on off the server thread");
+		assertTrue((boolean) field("queueInFlight"));
+		assertEquals(1, a.serverQueue.size());
+		drain();
+		assertEquals(FakeArchitect.REALISED, field("vRegionId"), tails());
+		assertEquals(FakeArchitect.REALISED, disk().vRegion());
+		for (int i = 0; i < a.callThreads.size(); i++) assertSame(server, a.callThreads.get(i), "called off the server thread: " + a.calls.get(i));
+		conserved();
+	}
+
+	/** Architect answers what it holds on a thread of its own (as its helper's link does), to the end of that thread. */
+	void answerOffThread() throws InterruptedException {
+		List<Throwable> thrown = new ArrayList<>();
+		Thread t = new Thread(() -> {
+			try {
+				a.complete();
+			} catch (RuntimeException | Error e) {
+				thrown.add(e);
+			}
+		}, "architect-answer");
+		t.start();
+		t.join(10_000);
+		assertFalse(t.isAlive());
+		assertTrue(thrown.isEmpty(), thrown.toString());
+	}
+
+	// ------------------------------------------------------------------ a failure after the rename (FENCE-TESTS' GPT P3 d; the save points CRASH-T left)
+
+	@Test
+	void aClearedQuoteWhoseWriteFailsGoesNoFurtherAndTheCrashNeverRealisesOnItsOwn() throws IOException {
+		for (var fail : List.of(DurableWrite.TestFail.BEFORE_RENAME, DurableWrite.TestFail.AFTER_RENAME)) {
+			// held before, quoted again within its bounds: cleared, the hold dropped; that save fails (after its rename: the file holds it, the
+			// runner was told it failed)
+			var wasHeld = new LinkedHashMap<String, ModuleOrder>();
+			BOUNDED.forEach((k, v) -> wasHeld.put(k, v.holding(ComposedRunnerOrderTest.json("{\"minecraft:dirt\": 1}"))));
+			runner(wasHeld);
+			a.approved.clear();
+			a.calls.clear();
+			a.quote = exact();
+			a.onCall = c -> { if (c.startsWith("regions.quoteApproved")) DurableWrite.FAIL_NEXT.add(fail); };
+			try (LogCapture log = LogCapture.open()) {
+				place();
+				assertTrue(ComposedRunnerOrderTest.said(log, "could not be saved with its working modules' bills"), fail + ": reached the cleared save: " + log.lines);
+			}
+			a.onCall = c -> {};
+			assertTrue(orders().values().stream().allMatch(o -> o.held() != null), fail + ": the cleared orders are not kept");
+			assertNull(field("composedCaps"), fail + ": caps kept");
+			assertEquals(0, a.count("regions.realiseApproved"), fail + ": went on unsaved");
+			crash();
+			place();
+			assertEquals(0, a.count("regions.realiseApproved"), fail + ": realised on its own after the restart: " + a.calls);
+			assertEquals(0, a.ledger.paid);
+			conserved();
+			SettlementRunner.clearForTest();
+		}
+	}
+
+	@Test
+	void aPutDownRefusalWrittenThoughItsSaveFailedStopsAndNeverRealisesOnItsOwn() throws IOException {
+		// (aRefusalWhoseWriteFails... after the rename) the refusal lands in the file though the save said it failed: the runner stops as it was
+		// saved before, and a restart finding the refusal on disk never realises without the player
+		runner(BOUNDED);
+		hallPutDownPast();
+		a.quote = exact();
+		a.onCall = c -> { if (c.startsWith("regions.realiseApproved")) DurableWrite.FAIL_NEXT.add(DurableWrite.TestFail.AFTER_RENAME); };
+		try (LogCapture log = LogCapture.open()) {
+			place();
+			assertTrue(ComposedRunnerOrderTest.said(log, "that could not be saved, so I won't ask again or build it"), log.lines.toString());
+		}
+		a.onCall = c -> {};
+		assertEquals(1, a.approved.size(), a.calls + " " + tails());
+		assertEquals(1, a.count("regions.quoteApproved"), "asked again on an unsaved refusal: " + a.calls);
+		assertTrue(orders().values().stream().noneMatch(ModuleOrder::refusedAtPutDown), "rolled back as saved");
+		assertEquals(0, a.ledger.paid);
+		crash();
+		place();
+		assertEquals(1, a.approved.size(), "realised on its own after the restart: " + a.calls + " " + tails());
+		assertEquals(0, a.ledger.paid);
+		conserved();
+	}
 }

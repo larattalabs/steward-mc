@@ -15,6 +15,8 @@ import org.apache.logging.log4j.core.config.Property;
  */
 final class LogCapture extends AbstractAppender implements AutoCloseable {
 	final List<String> lines = new CopyOnWriteArrayList<>();
+	/** (FENCE-TESTS-3) Run with each line as it is logged, so a test can read the disk at the moment something is said. */
+	volatile java.util.function.Consumer<String> onLine = l -> {};
 	private final Logger logger;
 	private final Level was;
 
@@ -33,7 +35,9 @@ final class LogCapture extends AbstractAppender implements AutoCloseable {
 
 	@Override
 	public void append(LogEvent event) {
-		lines.add(event.getMessage().getFormattedMessage());
+		String line = event.getMessage().getFormattedMessage();
+		lines.add(line);
+		onLine.accept(line);
 	}
 
 	boolean has(String part) {
