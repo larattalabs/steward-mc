@@ -3798,7 +3798,14 @@ public final class SettlementRunner {
 	private void sendApproved(String sha, dev.larattalabs.architect.api.ApprovedRealise request, Map<String, String> lotEntries,
 		@org.jspecify.annotations.Nullable ServerPlayer actor, JsonObject ext, boolean first, int session) {
 		var regions = ArchitectAccess.api().regions();
-		regions.realiseApproved(request)
+		// (FENCE-TESTS-3) a throw on the call itself is answered as a failed realise (as quoteComposed's quote is), never left in flight
+		java.util.concurrent.CompletableFuture<String> sent;
+		try {
+			sent = regions.realiseApproved(request);
+		} catch (RuntimeException | LinkageError e) {
+			sent = java.util.concurrent.CompletableFuture.failedFuture(e);
+		}
+		sent
 			.whenComplete((id, err) -> ArchitectAccess.onServer(server, () -> {
 				if (!Session.is(session)) return;
 				Throwable e = err == null ? null : err.getCause() != null ? err.getCause() : err;
