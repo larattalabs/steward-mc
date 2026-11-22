@@ -1901,9 +1901,13 @@ takes everything a module lot needs (plan/0 `lot.size`, `irrigate`, `field`, `ex
     - the same tile placed again and built (c42, c39);
     - forms at 11 of 12, fluids at 0 of 12;
     - the startup pass reports "found nothing lagging".
-  - **The orphan also blocks undo.** The region's removal never finishes: rg6 never logs "removal done", and its build resumes at PLACING on every
-    later start, while other regions removed normally.
-  - **Ask:** the fix also covers the undo/removal path. A failing-first row would halt mid-forms, restart, then undo, and the removal completes.
+  - **~~The orphan also blocks undo~~ (withdrawn, 11-22):** Architect's probe found the rg6 removal did start (07:08:15, "Removing group g5"),
+    but the harness's dev.quit came 3 s later. On copies of both kept worlds, main finishes the removal, though c41 stays placing:true on every
+    later start. PLR rolls c41 and c38 back, the removal completes, and no records are left.
+  - **Answered:** Architect added the row (halt mid-forms, restart, undo, removal done, no records): rp-crash RG4/nojob on slice/PLR-U cda8c317.
+    It is test-only, goes red without PLR's sweep and green on PLR (46 of 46), and ships with PLR.
+  - **Steward's side:** after an undo, the e2e's dev.quit should wait for "removal done" (or a grace period), so kept worlds don't look like stalled
+    removals (LEFTOVERS E2E-QUIT-GRACE).
   - **Evidence:** `_work/steward-batch-094/logs/ab/kept/` (the worlds) and `logs/stall/cap-growth/` (the game logs). Pin 0.89.0.
 
 ### T4RD: Steward's review of T4R-D (player blocks owed, cascade ownership, admission; 2026-11-21, revisions 1-3)
