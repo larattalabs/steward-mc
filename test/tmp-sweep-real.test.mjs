@@ -16,6 +16,18 @@ const made = [];
 const tmp = (p) => { const d = fs.mkdtempSync(path.join(os.tmpdir(), p)); made.push(d); return d; };
 after(() => { for (const d of made) fs.rmSync(d, { recursive: true, force: true }); });
 
+/** (batch 094 GPT P2) every wait on a child is bounded: a child that never answers fails the test instead of holding npm test open. */
+const WAIT_MS = 20_000;
+function bounded(promise, what, ms = WAIT_MS) {
+  let t;
+  return Promise.race([promise, new Promise((_, reject) => { t = setTimeout(() => reject(new Error(`timed out after ${ms} ms waiting for ${what}`)), ms); t.unref(); })])
+    .finally(() => clearTimeout(t));
+}
+/** A child still running is killed (a failed assertion must never leave one keeping the test process alive). */
+function reap(c) {
+  if (c.exitCode === null && c.signalCode === null) c.kill('SIGKILL');
+}
+
 /** A node child that prints its pid and Node timeOrigin (what a driver writes in its marker); `stay` keeps it running. */
 function child(stay) {
   const c = spawn(process.execPath, ['-e', `console.log(process.pid + ' ' + Math.round(performance.timeOrigin));${stay ? ' setInterval(() => {}, 1000);' : ''}`],
@@ -32,9 +44,13 @@ function child(stay) {
 /** A real owner that has exited: its pid no longer runs (or runs as another process, started later). */
 async function deadOwner() {
   const k = child(false);
-  const o = await k.owner;
-  await k.exited;
-  return o;
+  try {
+    const o = await bounded(k.owner, 'a short-lived child\'s pid');
+    await bounded(k.exited, 'a short-lived child to exit');
+    return o;
+  } finally {
+    reap(k.c);
+  }
 }
 
 const HOUR = 3_600_000;
@@ -56,7 +72,7 @@ test('(E2E-DISK-5) with real owners and the default ps/kill checks, the sweep ta
   const root = tmp('tmpreal-ram-');
   const live = child(true);
   try {
-    const L = await live.owner;
+    const L = await bounded(live.owner, 'the live child\'s pid');
     const D = await deadOwner();
     const plain = dir(root, 'sidecar-dead', { kb: 8, owner: D });
     const held = dir(root, 'sidecar-live', { kb: 8, owner: L });
@@ -76,7 +92,7 @@ test('(E2E-DISK-5) with real owners and the default ps/kill checks, the sweep ta
     assert.equal(r.overCap, false);
     assert.equal(r.failed.length, 0);
   } finally {
-    live.c.kill('SIGKILL');
+    reap(live.c);
   }
 });
 
@@ -84,7 +100,7 @@ test('(E2E-DISK-5) past STEWARD_KEEP_TMP_CAP_GIB the dead owners\' kept dirs go 
   const root = tmp('tmpreal-ram-');
   const live = child(true);
   try {
-    const L = await live.owner;
+    const L = await bounded(live.owner, 'the live child\'s pid');
     const D = await deadOwner();
     const big = dir(root, 'sidecar-livebig', { kb: 512, owner: L, kept: true, ageMs: 30 * HOUR });
     const a = dir(root, 'sidecar-k1', { kb: 128, owner: D, kept: true, ageMs: 3 * HOUR });
@@ -107,7 +123,7 @@ test('(E2E-DISK-5) past STEWARD_KEEP_TMP_CAP_GIB the dead owners\' kept dirs go 
     assert.ok(fs.existsSync(path.join(big, 'data.bin')));
     assert.equal(r2.overCap, true);
   } finally {
-    live.c.kill('SIGKILL');
+    reap(live.c);
   }
 });
 
@@ -136,34 +152,42 @@ test('(E2E-DISK-5) a real driver on a game dir holding dev data runs in a fallba
   const dev = ramSidecarData(game, {}, root);
   fs.writeFileSync(path.join(dev.dir, 'designs.json'), 'dev');
   const d = driver('end', { game, root });
-  const fb = await d.ready;
-  assert.notEqual(fb, dev.dir);
-  assert.equal((await d.done).code, 0);
-  assert.equal(fs.existsSync(fb), false, 'the fallback is gone');
-  assert.equal(fs.readlinkSync(link), dev.dir, 'the link is back on the game dir\'s dir');
-  assert.equal(fs.readFileSync(path.join(link, 'designs.json'), 'utf8'), 'dev');
-  assert.deepEqual(fs.readdirSync(path.join(root, 'steward')), [path.basename(dev.dir)], 'nothing piles up');
+  try {
+    const fb = await bounded(d.ready, 'the driver\'s ready line');
+    assert.notEqual(fb, dev.dir);
+    assert.equal((await bounded(d.done, 'the driver to end')).code, 0);
+    assert.equal(fs.existsSync(fb), false, 'the fallback is gone');
+    assert.equal(fs.readlinkSync(link), dev.dir, 'the link is back on the game dir\'s dir');
+    assert.equal(fs.readFileSync(path.join(link, 'designs.json'), 'utf8'), 'dev');
+    assert.deepEqual(fs.readdirSync(path.join(root, 'steward')), [path.basename(dev.dir)], 'nothing piles up');
+  } finally {
+    reap(d.c);
+  }
 });
 
 test('(E2E-DISK-5) a SIGKILLed STEWARD_KEEP_TMP driver leaves a kept dir: the real sweep keeps it while young, takes it past the age bound', async () => {
   const game = tmp('tmpreal-game-'), root = tmp('tmpreal-ram-');
   const d = driver('wait', { game, root, env: { STEWARD_KEEP_TMP: '1' } });
-  const kd = await d.ready;
-  const o = readOwner(kd);
-  assert.equal(o.kept, true);
-  assert.equal(o.pid, d.c.pid);
-  // while it runs, even past every bound, it is held
-  backdate(kd, 30 * HOUR);
-  assert.deepEqual(sweepStale({ root: path.join(root, 'steward'), ...keptBounds({}) }).removed, []);
-  d.c.kill('SIGKILL');
-  await d.done;
-  fs.utimesSync(kd, new Date(), new Date());
-  fs.utimesSync(path.join(kd, OWNER_FILE), new Date(), new Date());
-  const young = sweepStale({ root: path.join(root, 'steward'), ...keptBounds({}) });
-  assert.deepEqual(young.removed, [], 'its owner is gone, but it is young');
-  assert.ok(fs.existsSync(path.join(kd, 'plans.json')));
-  backdate(kd, 25 * HOUR);
-  const old = sweepStale({ root: path.join(root, 'steward'), ...keptBounds({ STEWARD_KEEP_TMP_HOURS: '24' }) });
-  assert.deepEqual(old.removed, [path.basename(kd)]);
-  assert.equal(fs.existsSync(kd), false);
+  try {
+    const kd = await bounded(d.ready, 'the driver\'s ready line');
+    const o = readOwner(kd);
+    assert.equal(o.kept, true);
+    assert.equal(o.pid, d.c.pid);
+    // while it runs, even past every bound, it is held
+    backdate(kd, 30 * HOUR);
+    assert.deepEqual(sweepStale({ root: path.join(root, 'steward'), ...keptBounds({}) }).removed, []);
+    d.c.kill('SIGKILL');
+    await bounded(d.done, 'the killed driver to close');
+    fs.utimesSync(kd, new Date(), new Date());
+    fs.utimesSync(path.join(kd, OWNER_FILE), new Date(), new Date());
+    const young = sweepStale({ root: path.join(root, 'steward'), ...keptBounds({}) });
+    assert.deepEqual(young.removed, [], 'its owner is gone, but it is young');
+    assert.ok(fs.existsSync(path.join(kd, 'plans.json')));
+    backdate(kd, 25 * HOUR);
+    const old = sweepStale({ root: path.join(root, 'steward'), ...keptBounds({ STEWARD_KEEP_TMP_HOURS: '24' }) });
+    assert.deepEqual(old.removed, [path.basename(kd)]);
+    assert.equal(fs.existsSync(kd), false);
+  } finally {
+    reap(d.c);
+  }
 });
