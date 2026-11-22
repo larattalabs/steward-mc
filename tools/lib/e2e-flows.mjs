@@ -210,3 +210,88 @@ export function tierSkips(list, why, { nightly = false, full = false, only = nul
   }
   return out;
 }
+
+// ------------------------------------------------------------------ slice E2E-SPEED-2: the fast set for light-only batches
+
+/**
+ * (E2E-SPEED-2, Noah 11-22: "1+2+3: all speed items") The fast set: what `--fast` runs besides the sanity set (status, the claim and its steward,
+ * Expand, the restart: not flows, always run), one stub flow per risk area, by exact name (pickFlows' words match substrings: `survival` alone
+ * picks dozens). For light-only batches (no strict slice); a strict batch never uses it (AGENTS.md speed rules 9 and 10). docs/SPEED-CUTS.md.
+ * Neither sculpt crash flow is in it (Architect B092L-1), nor any nightly-only or full-tier flow.
+ */
+export const FAST_FLOWS = {
+  'survival billing and refund': ['survival'],
+  'a composed build with conservation': ['composed-modules-survival'],
+  'module billing': ['module-hall-survival'],
+  'undo and revert': ['revision', 'discard'],
+  districts: ['district-region'],
+  'a crash and restart': ['composed-hall-fill-restart'],
+};
+export const fastNames = () => [...new Set(Object.values(FAST_FLOWS).flat())];
+
+/**
+ * The flows a `--fast` run picks: the fast set by exact name, plus pickFlows' choice for `words` (the batch's touched flows: their names, tags or
+ * words; none: the fast set alone), each with what it needs. Same shape as pickFlows: name -> '' when picked, else the flow that needs it. A fast
+ * name missing from `list` is left out (a free run, say).
+ */
+export function fastPick(list, words = null, names = fastNames()) {
+  const why = words?.length ? pickFlows(list, words) : new Map();
+  for (const f of list) if (names.includes(f.name)) why.set(f.name, '');
+  const pull = (f) => {
+    for (const n of f.needs ?? []) {
+      if (!why.has(n)) why.set(n, f.name);
+      pull(list.find((x) => x.name === n));
+    }
+  };
+  for (const f of list) if (why.has(f.name)) pull(f);
+  return new Map(list.filter((f) => why.has(f.name)).map((f) => [f.name, why.get(f.name)]));
+}
+
+/**
+ * The projected wall seconds of a --clients run from its packed lanes: lane k starts (k-1) * stagger after the first, then runs its own sanity set
+ * (`sanity` s: start, claim, Expand) and its flows; the wall is the latest lane's end. -> { wall, lanes: [end s] }.
+ */
+export function projectWall(lanes, { sanity = 0, stagger = 0 } = {}) {
+  const ends = lanes.map((l, i) => i * stagger + sanity + (l.seconds ?? 0));
+  return { wall: Math.max(0, ...ends), lanes: ends };
+}
+
+/** A lane's own time besides its flows: the client's launch, the sanity set and the closing restart (batches 090-096: about 3-4 min). */
+export const LANE_OVERHEAD_S = 240;
+
+/**
+ * e2e.mjs's top-level code blocks with each identifier imported from tools/lib standing for its whole module's text (what flowCode's closure
+ * reads). `readLib(rel)` gives a lib's text ('./lib/x.mjs' -> its source), or null when it can't be read.
+ */
+export function blocksWithLibs(src, readLib) {
+  const blocks = codeBlocks(src);
+  for (const m of src.matchAll(/^import\s*\{([^}]*)\}\s*from\s*'(\.\/lib\/[^']+)'/gm)) {
+    const text = readLib(m[2]);
+    for (const id of m[1].split(',').map((x) => x.trim().split(/\s+as\s+/).pop()).filter(Boolean)) blocks[id] = text;
+  }
+  return blocks;
+}
+
+/**
+ * (E2E-SPEED-2) The flows a batch touched by file, for --fast: a flow is touched when a block its code reaches (its closure, `closures[name].names`:
+ * an e2e.mjs block, or a lib identifier standing for its module) differs between the base and the head (or is new), or when a changed file is one
+ * of its fixtures (`closures[name].fixtures`; a directory ref, ending in '/', covers what is under it). A changed block that more than `shared` of
+ * the flows reach (the harness: launch, restarts, the shared libs) touches none by itself: every flow runs through it, so the sanity and fast sets
+ * already exercise it; it is listed in `harness`. `base` and `head` are blocksWithLibs maps; `changed` the changed paths. Mod (Java) changes map to
+ * no flow: the batch names those by word (--only). -> { touched: Map name -> why, harness: [block names] }.
+ */
+export function touchedByFiles({ list, closures, base, head, changed = [], shared = 0.5 }) {
+  const touched = new Map();
+  const diff = new Set(Object.keys(head).filter((n) => base[n] == null || hashText(String(base[n])) !== hashText(String(head[n]))));
+  const reach = new Map();
+  const timed = list.filter((f) => closures[f.name]);
+  for (const f of timed) for (const n of closures[f.name].names) if (diff.has(n)) reach.set(n, (reach.get(n) ?? 0) + 1);
+  const harness = [...reach].filter(([, k]) => k > shared * timed.length).map(([n]) => n).sort();
+  for (const f of timed) {
+    const c = closures[f.name];
+    const blocks = c.names.filter((n) => diff.has(n) && !harness.includes(n));
+    const fx = changed.filter((p) => c.fixtures.some((r) => (r.endsWith('/') ? p.startsWith(r) : p === r)));
+    if (blocks.length || fx.length) touched.set(f.name, [blocks.length ? `code ${blocks.slice(0, 4).join(', ')}${blocks.length > 4 ? ` +${blocks.length - 4}` : ''}` : '', fx.length ? `fixtures ${fx.slice(0, 3).join(', ')}` : ''].filter(Boolean).join('; '));
+  }
+  return { touched, harness };
+}

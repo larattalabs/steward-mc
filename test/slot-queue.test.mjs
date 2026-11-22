@@ -239,3 +239,11 @@ test('a ticket this process already holds is refused, and the held one is not re
   assert.deepEqual(fake.calls().map((x) => x.cmd), ['acquire', 'acquire']);
   release(a.ticket, { log: quiet });
 });
+
+test('(E2E-SPEED-2) three clients take three slots in order, each released when its client is done', async () => {
+  const h = lanesHarness(['ok', 'ok', 'ok']);
+  const rows = await runLanes(lanes(3), h.opts);
+  assert.deepEqual(rows.map((r) => [r.result.k, r.slot.ticket, r.host]), [[1, 't-1', null], [2, 't-2', null], [3, 't-3', null]]);
+  assert.deepEqual(h.events.filter((e) => e.startsWith('acquire')), ['acquire 1', 'acquire 2', 'acquire 3']);
+  assert.deepEqual(h.events.filter((e) => e.startsWith('release')).sort(), ['release t-1', 'release t-2', 'release t-3']);
+});

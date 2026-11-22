@@ -342,3 +342,62 @@ export function mergeCleanups(rows) {
   out.note = deleteNote(out.kept.map((k) => k.path));
   return out;
 }
+
+// ------------------------------------------------------------------ E2E-SPEED-2: the RAM disk's free-space floor at each client's start
+
+/**
+ * (E2E-SPEED-2, Noah 11-22: the RAM disk stays 24 GB) /Volumes/MCTmp is shared by up to 6 runs machine-wide, and one client's sidecar data measured
+ * 1.7-5.5 GB; one run filling it caused ENOSPC at 02:27. So each client (a single driver, each --clients child, the nightly's) waits before its first
+ * launch until the RAM disk has E2E_TMP_FLOOR_GIB free (default 6), for E2E_TMP_WAIT_MIN at most (default 15, like the load gate), re-checking every
+ * 15 s. Past the bound the start FAILS, naming the free space and the floor; so does a free space that can't be read (never a silent pass).
+ * Only when the RAM disk is the run's temp root (its sidecar data there); E2E_TMP_FLOOR_GIB=0 turns it off.
+ */
+export const DEFAULT_TMP_FLOOR_GIB = 6;
+export const DEFAULT_TMP_WAIT_MIN = 15;
+
+/** {gib, waitMin, warnings} from E2E_TMP_FLOOR_GIB and E2E_TMP_WAIT_MIN (numbers >= 0), else the defaults, said. */
+export function tmpFloor(env = process.env) {
+  const warnings = [];
+  const num = (k, d) => {
+    const raw = env[k];
+    if (raw == null || String(raw).trim() === '') return d;
+    const n = Number(raw);
+    if (Number.isFinite(n) && n >= 0) return n;
+    warnings.push(`${k}=${JSON.stringify(raw)} is not a number >= 0: using ${d}`);
+    return d;
+  };
+  return { gib: num('E2E_TMP_FLOOR_GIB', DEFAULT_TMP_FLOOR_GIB), waitMin: Math.min(num('E2E_TMP_WAIT_MIN', DEFAULT_TMP_WAIT_MIN), DEFAULT_TMP_WAIT_MIN), warnings };
+}
+
+/**
+ * Waits until the volume holding dir has the floor free. -> {ok, freeGiB, floorGiB, waitedMin, message}: ok false past the bound or when statfs
+ * can't be read (then the caller fails the start). statfs, now and sleep are injected (tests).
+ */
+export async function waitTmpFloor(dir, { env = process.env, statfs = fs.statfsSync, exists = fs.existsSync, now = Date.now,
+  sleep = (ms) => new Promise((r) => setTimeout(r, ms)), every = 15_000, log = () => {} } = {}) {
+  const { gib: floorGiB, waitMin, warnings } = tmpFloor(env);
+  for (const w of warnings) log(w);
+  if (floorGiB === 0) return { ok: true, freeGiB: null, floorGiB, waitedMin: 0, message: 'RAM-disk floor off (E2E_TMP_FLOOR_GIB=0)' };
+  const t0 = now();
+  const gib = (b) => Math.round((b / GIB) * 10) / 10;
+  const waited = () => Math.round(((now() - t0) / 60_000) * 10) / 10;
+  let said = false;
+  for (;;) {
+    let free;
+    try {
+      free = freeBytes(dir, { statfs, exists });
+      if (!Number.isFinite(free)) throw new Error('statfs gave no number');
+    } catch (e) {
+      return { ok: false, freeGiB: null, floorGiB, waitedMin: waited(), message: `RAM-disk floor: could not read the free space of ${dir} (${e.message}): not started` };
+    }
+    if (free >= floorGiB * GIB) {
+      return { ok: true, freeGiB: gib(free), floorGiB, waitedMin: waited(), message: `RAM disk ${dir}: ${gib(free)} GiB free (floor ${floorGiB} GiB${said ? `, after ${waited()} min` : ''})` };
+    }
+    if (now() - t0 >= waitMin * 60_000) {
+      return { ok: false, freeGiB: gib(free), floorGiB, waitedMin: waited(),
+        message: `RAM disk ${dir}: ${gib(free)} GiB free, below the ${floorGiB} GiB floor after ${waited()} min (bound ${waitMin} min): not started (E2E_TMP_FLOOR_GIB, E2E_TMP_WAIT_MIN)` };
+    }
+    if (!said) { log(`RAM disk ${dir}: ${gib(free)} GiB free, below the ${floorGiB} GiB floor: waiting (at most ${waitMin} min)`); said = true; }
+    await sleep(every);
+  }
+}

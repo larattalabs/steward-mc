@@ -3,7 +3,8 @@
 // for temp files. When the volume is missing or not writable, or STEWARD_RAM_TMP=0, TMPDIR stays as it was.
 import fs from 'node:fs';
 import path from 'node:path';
-import { own as ownDir, readOwner, isHeld, isKept, ownedByMe, ownerGone, processStarts } from './tmp-owner.mjs';
+import { execFileSync } from 'node:child_process';
+import { own as ownDir, readOwner, rawOwner, parseOwner, isHeld, isKept, ownedByMe, ownerGone, processStarts } from './tmp-owner.mjs';
 
 export const RAM_TMP = '/Volumes/MCTmp/tmp';
 
@@ -150,4 +151,113 @@ function refuseLive(dir, gameDir, starts) {
     throw new Error(`${dir} (the sidecar dir of ${path.resolve(gameDir)}) is held by another live run (pid ${o.pid}): refused, nothing emptied or relinked; let it finish first`);
   }
   return o;
+}
+
+// ------------------------------------------------------------------ E2E-SPEED-2 item 5: a gone run's sidecar data emptied by whoever outlives it
+
+/**
+ * (E2E-SPEED-2 item 5; Noah via the parent 11-22) Architect saw /Volumes/MCTmp at 38 MiB free with 19 GiB under tmp/steward. A driver empties its
+ * own sidecar dir at its end (TMPSWEEP, tmp-owner.mjs), but a SIGKILLed driver (a lead's child past its stop bound, the nightly's timeout) leaves
+ * 2-6 GiB there until some later run's sweep. So the process that outlives it (a --clients lead after each child, the nightly after each step)
+ * empties that one dir, after proving it is that run's:
+ *   - `<gameDir>/architect/sidecar-data` is a symlink, and its target's realpath is a direct child of realpath(<root>/steward) named
+ *     sidecar-<hex> or a fallback sidecar-<hex>-XXXXXX, a real directory (lstat; a link to a link is refused, never followed);
+ *   - its owner marker parses, isn't `kept`, names this game dir (by real path, any case) and, when `pid` is given, that pid;
+ *   - its owner is gone (`gone`, the pid and its start time), and no client JVM still has this game dir as its working dir (`jvmOn`);
+ *   - the marker is read again just before the removal and must be byte-for-byte the one judged.
+ * STEWARD_KEEP_TMP=1 keeps everything. `evidenceTo` (a failed run's kept world): the small logs and JSON are copied there first (copyEvidence).
+ * The dir is made again empty and unmarked, so the link stays valid. Never throws.
+ * -> {outcome: 'emptied'|'none'|'refused'|'not-mine'|'kept'|'live'|'failed', dir?, why?, evidence?}.
+ */
+export function reapSidecar(gameDir, { root = RAM_TMP, pid = null, env = process.env, gone = (o) => ownerGone(o), jvmOn = clientOnGameDir, evidenceTo = null } = {}) {
+  const link = path.join(gameDir, 'architect', 'sidecar-data');
+  try {
+    let st;
+    try { st = fs.lstatSync(link); } catch { return { outcome: 'none', why: 'no sidecar-data link' }; }
+    if (!st.isSymbolicLink()) return { outcome: 'none', why: 'sidecar-data is not a link (on disk)' };
+    const target = path.resolve(path.dirname(link), fs.readlinkSync(link));
+    let tst;
+    try { tst = fs.lstatSync(target); } catch { return { outcome: 'none', why: 'the link\'s target is gone' }; }
+    if (!tst.isDirectory()) return { outcome: 'refused', dir: target, why: 'the link\'s target is not a real directory (a link or a file): not followed' };
+    let base;
+    try { base = fs.realpathSync(path.join(root, 'steward')); } catch { return { outcome: 'refused', dir: target, why: `${root}/steward is not there` }; }
+    const real = fs.realpathSync(target);
+    if (path.dirname(real) !== base || !/^sidecar-[0-9a-f]+(-[A-Za-z0-9]{6})?$/.test(path.basename(real))) {
+      return { outcome: 'refused', dir: real, why: `not a sidecar dir directly under ${base}` };
+    }
+    const raw = rawOwner(real);
+    const o = parseOwner(raw);
+    if (!o) return { outcome: 'not-mine', dir: real, why: 'no owner marker' };
+    if (isKept(o) || env.STEWARD_KEEP_TMP === '1') return { outcome: 'kept', dir: real, why: 'kept (STEWARD_KEEP_TMP)' };
+    const same = (a, b) => !!a && !!b && realishLower(a) === realishLower(b);
+    if (!same(o.gameDir, gameDir)) return { outcome: 'not-mine', dir: real, why: `its marker names another game dir (${o.gameDir ?? 'none'})` };
+    if (pid != null && o.pid !== pid) return { outcome: 'not-mine', dir: real, why: `its marker names pid ${o.pid}, not ${pid}` };
+    if (!gone(o)) return { outcome: 'live', dir: real, why: `its owner (pid ${o.pid}) still runs` };
+    const jvm = jvmOn(gameDir);
+    if (jvm) return { outcome: 'live', dir: real, why: `a client JVM (${jvm}) still runs on ${gameDir}` };
+    const evidence = evidenceTo ? copyEvidence(real, evidenceTo) : null;
+    if (rawOwner(real) !== raw) return { outcome: 'live', dir: real, why: 'marked again meanwhile' };
+    fs.rmSync(real, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+    fs.mkdirSync(real, { recursive: true });
+    return { outcome: 'emptied', dir: real, ...(evidence ? { evidence } : {}) };
+  } catch (e) {
+    return { outcome: 'failed', why: e.message };
+  }
+}
+
+/** p by its real path where it exists (the nearest existing ancestor resolved), in lower case: APFS ignores case. */
+function realishLower(p) {
+  let at = path.resolve(p), tail = '';
+  while (!fs.existsSync(at) && path.dirname(at) !== at) { tail = path.join(path.basename(at), tail); at = path.dirname(at); }
+  let real = at;
+  try { real = fs.realpathSync(at); } catch {}
+  return path.join(real, tail).toLowerCase();
+}
+
+/** The pid of a client JVM (Homebrew java, KnotClient) whose working dir is gameDir, or null (anchored pgrep; lsof for each one's cwd). */
+export function clientOnGameDir(gameDir) {
+  let pids = [];
+  try { pids = execFileSync('pgrep', ['-f', '^/opt/homebrew/.*java.*KnotClient'], { encoding: 'utf8' }).split('\n').filter(Boolean); } catch { return null; }
+  const want = realishLower(gameDir);
+  for (const p of pids) {
+    let cwd = null;
+    try { cwd = /^n(.+)$/m.exec(execFileSync('lsof', ['-a', '-p', p, '-d', 'cwd', '-Fn'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }))?.[1] ?? null; } catch {}
+    if (cwd && realishLower(cwd) === want) return Number(p);
+  }
+  return null;
+}
+
+/** What copyEvidence takes: logs and JSON (and .txt), each at most 1 MiB, 16 MiB in all; never node_modules, tokens or secrets. */
+export const EVIDENCE = { exts: ['.log', '.json', '.txt'], maxFile: 1 << 20, maxTotal: 16 << 20, skipDirs: ['node_modules', 'blobs'], skipNames: /token|secret|credential/i,
+  /** a file whose text names a credential (a JSON key, or `token=`/`Bearer`) is never copied */
+  skipText: /"[^"\n]*(token|secret|api[_-]?key|password|authorization|credential)[^"\n]*"\s*:|\b(token|api[_-]?key|password)\s*=|\bBearer\s/i };
+
+/**
+ * Copies the small evidence files of a sidecar dir (regular files only, by lstat: links are never followed) to dest, keeping their relative paths.
+ * -> {dest, files, bytes, skipped}. Never throws.
+ */
+export function copyEvidence(src, dest, { exts = EVIDENCE.exts, maxFile = EVIDENCE.maxFile, maxTotal = EVIDENCE.maxTotal } = {}) {
+  const out = { dest, files: 0, bytes: 0, skipped: 0 };
+  const walk = (dir, rel) => {
+    let names = [];
+    try { names = fs.readdirSync(dir).sort(); } catch { return; }
+    for (const n of names) {
+      const p = path.join(dir, n), r = path.join(rel, n);
+      let st;
+      try { st = fs.lstatSync(p); } catch { continue; }
+      if (st.isDirectory()) { if (!EVIDENCE.skipDirs.includes(n)) walk(p, r); continue; }
+      if (!st.isFile() || EVIDENCE.skipNames.test(n) || !exts.includes(path.extname(n)) || n === '.arch-owner') continue;
+      if (st.size > maxFile || out.bytes + st.size > maxTotal) { out.skipped++; continue; }
+      try {
+        const text = fs.readFileSync(p);
+        if (EVIDENCE.skipText.test(text.toString('utf8'))) { out.skipped++; continue; }
+        fs.mkdirSync(path.join(dest, rel), { recursive: true });
+        fs.writeFileSync(path.join(dest, r), text, { flag: 'wx' });
+        out.files++;
+        out.bytes += st.size;
+      } catch { out.skipped++; }
+    }
+  };
+  walk(src, '');
+  return out;
 }

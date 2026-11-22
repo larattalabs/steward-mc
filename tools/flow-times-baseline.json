@@ -15,6 +15,7 @@
   "composed-modules-street": 19,
   "composed-modules-survival": 142,
   "composed-sculpt": 47,
+  "composed-sculpt-crash-carve": 400,
   "composed-sculpt-crash-refund": 261,
   "composed-sculpt-crash-water": 228,
   "composed-sculpt-stale": 111,
@@ -78,5 +79,8 @@
   "village-orphan": 85,
   "wall-lots": 457,
   "wall-offer": 189
+ },
+ "estimates": {
+  "composed-sculpt-crash-carve": "E2E-SPEED-2: not measured (nightly-only, it stalls on B092L-1 about 1 in 3); set near its crash-water/-refund siblings plus its 5 min stall bound so the nightly packs its composed group by time"
  }
 }

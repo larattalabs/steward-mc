@@ -427,6 +427,45 @@ packed blind (see below).
 - **Per-check `t`.** Each check row in summary.json carries `t`, its seconds into the flow, so the next sweep can see the phases.
 - **`--full`** runs the tier left out of batch runs (now: module-survival's report-only waiting round). The nightly runs it as well.
 
+
+#### Three clients, the fast set, the 2-client nightly, the RAM-disk floor (slice E2E-SPEED-2, 2026-11-22, $0)
+
+Noah, 11-22: "1+2+3: all speed items", then items 5 and 6.
+
+- **`--clients 3 --ports a,b,c --stagger 120`.** Nothing in the lanes was 2-only: packing, one slot per client (acquired in turn; the queue's
+  120 s settle spaces them), lane dirs and the summary merge are per lane. `--plan` now prints the projected wall: each lane's start (the stagger,
+  else 120 s), about 4 min of launch, sanity set and restart (`LANE_OVERHEAD_S`), then its flows. On the baseline a full stub projects about
+  **82 min on 2 lanes and 59 min on 3** (9177 s of flows; the composed and gate-mech families pack as groups). A lane whose slot doesn't come
+  still falls back to running after c1, and every lane after it too.
+- **`--fast`** (stub only; not with `--full` or `--flows`): the sanity set, one flow per risk area (`FAST_FLOWS`, `tools/lib/e2e-flows.mjs`, by
+  exact name), the flows `--only` names (the batch's words: names, tags or words) and the flows **touched by file** since `--touched-base <ref>`
+  (default: the merge base with `main`; `none` turns it off), each with what it needs. Touched by file: a block of `tools/e2e.mjs` or a
+  `tools/lib` module the flow's code reaches changed, or one of its fixtures (`touchedByFiles`). A changed block more than half the flows reach
+  (the harness: launch, restarts, the shared libs) touches none by itself and is listed as harness code: every flow runs it, so the sanity and
+  fast sets cover it. Mod (Java) changes map to no flow: name those flows with `--only`. A base git can't read fails the run. For
+  **light-only batches**; a strict batch never uses it. summary.json says `tier: 'fast'`. The set alone projects about 11 min on 3 clients.
+  `docs/SPEED-CUTS.md` has the row.
+- **The nightly's stub runs on 2 clients**: `e2e.mjs stub --clients 2 --ports 8590,8600 --stagger 120` with `E2E_NIGHTLY=1`, c1 on 8590/8591,
+  c2 on 8600/8601 (reserved for it). The night is skipped when any of the four is taken. `node tools/nightly.mjs --dry` prints the argv, the ports
+  and the fit from `stub --plan` (about 112 of 165 min). At its limit the night's SIGKILL now follows its SIGTERM by 180 s (was 30 s), past a
+  lead's own stop bound, so its clients quit and their RAM dirs go. `composed-sculpt-crash-carve` has an estimated baseline time (400 s, marked
+  under `estimates`) so the composed group packs by time.
+- **The RAM disk's floor** (`waitTmpFloor`, `tools/lib/disk.mjs`): each client (single driver, every `--clients` child, the nightly's) whose
+  sidecar data is on the RAM disk waits after its slot and before its first launch (not its relaunches) until `/Volumes/MCTmp` has
+  `E2E_TMP_FLOOR_GIB` free (default 6), re-checking every 15 s, for `E2E_TMP_WAIT_MIN` at most (default and cap 15). Past the bound, or when the
+  free space can't be read, the start FAILS as the check `ram floor`, naming the free space and the floor. `E2E_TMP_FLOOR_GIB=0` turns it off.
+- **A gone run's sidecar dir emptied** (`reapSidecar`, `tools/lib/ram-tmp.mjs`; item 5). A driver already empties its own at its end
+  (TMPSWEEP); now a removal a straggler spoils is retried (4 tries, 3 s apart), a `--clients` lead empties each child's dir after the child
+  ends (one SIGKILLed past its stop bound left 2-6 GiB until some later sweep), and the nightly does the same for its worktree's run dirs
+  after each step. Only after proving the dir is that run's: the game dir's `sidecar-data` is a symlink to a real dir directly under
+  realpath(`/Volumes/MCTmp/tmp/steward`) named `sidecar-<hex>[-XXXXXX]`; its marker names this game dir (real path, any case) and, for a lead,
+  the child's pid; it isn't kept; its owner is gone; no client JVM runs on the game dir; and the marker is unchanged just before the removal.
+  The dir is made again empty, so the link stays valid. `STEWARD_KEEP_TMP=1` keeps everything. A failed run's small evidence (`.log`, `.json`,
+  `.txt` under 1 MiB, 16 MiB in all; never `node_modules`, `blobs`, a file named or holding a token, secret, key or password, links never followed) is copied first into its kept world,
+  `saves/Steward E2E <tag>/steward-sidecar-evidence/`, which the kept world's delete note covers.
+  - The 11-22 incident (38 MiB free, 19 GiB under `tmp/steward`) was mostly live runs at once: on a normal end every dir was already empty
+    (95 empty `sidecar-*` dirs, one live 2.4 GiB). The floor is what keeps concurrent runs from filling it.
+
 ## lab-ui
 
 lab-ui (`dev.larattalabs:lab_ui`), the shared client UI library, is bundled jar-in-jar. `mod/settings.gradle` decides where Gradle gets it, with the same rule as
