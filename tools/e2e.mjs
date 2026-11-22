@@ -18,9 +18,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { regionUntilBy, readSince } from './lib/region-wait.mjs';
-import { pickFlows, groupFlows, packFlows, codeBlocks, closureOf, fixtureRefs, hashPaths, hashText, hashLib, skipDecision, applySkips, isStrict, mergeFlowSeconds, tierSkips } from './lib/e2e-flows.mjs';
-import { useRamTmp, ramSidecarData, RAM_TMP } from './lib/ram-tmp.mjs';
-import { sweepStale, cleanupOwned, keptBounds } from './lib/tmp-owner.mjs';
+import { pickFlows, groupFlows, packFlows, codeBlocks, closureOf, fixtureRefs, hashPaths, hashText, hashLib, skipDecision, applySkips, isStrict, mergeFlowSeconds, tierSkips, fastPick, fastNames, projectWall, LANE_OVERHEAD_S } from './lib/e2e-flows.mjs';
+import { useRamTmp, ramSidecarData, RAM_TMP, reapSidecar, copyEvidence } from './lib/ram-tmp.mjs';
+import { sweepStale, cleanupOwnedSettled, keptBounds } from './lib/tmp-owner.mjs';
 import { checkCommand, saveBarrier } from './lib/save-barrier.mjs';
 import { judgeSort } from './lib/hall-sort.mjs';
 import { overflowGrew } from './lib/overflow.mjs';
@@ -30,7 +30,7 @@ import { judgeUndoWorld, auditWords, crateBoxes, ALLOWED_CLASSES, rootProbes, ad
 import { acquire as acquireSlot, release as releaseSlot, inheritedSlot, slotsOff, runLanes, waitLine } from './lib/slot-queue.mjs';
 import { install as installShutdown, onStop, shuttingDownNow, stopPid, childExited, listenerPid, commandOf, pidRuns, waitFor } from './lib/shutdown.mjs';
 import { processStart } from './lib/tmp-owner.mjs';
-import { checkFreeSpace, EXIT_LOW_DISK, keepReason, cleanupRun, mergeCleanups, laneRunDirs, addCleanup, claimRunDir, runItems, DELETE_LANE_DIRS, runTag, e2eWorld,
+import { waitTmpFloor, checkFreeSpace, EXIT_LOW_DISK, keepReason, cleanupRun, mergeCleanups, laneRunDirs, addCleanup, claimRunDir, runItems, DELETE_LANE_DIRS, runTag, e2eWorld,
   worldAtStart, markWorld, filesToWrite, laneDirName, laneUse, claimAnswerFile } from './lib/disk.mjs';
 // temp files on the RAM disk when it's there (its own clients and the build inherit TMPDIR)
 useRamTmp();
@@ -69,12 +69,16 @@ const stagger = Number(argOf('--stagger') ?? (slotsOff() ? 60 : 0));
 const skipUnchanged = process.argv.includes('--skip-unchanged');
 // (E2E-SPEED) the full tier: flows tagged `full` run only with --full, in the nightly, or named in --only (docs/SPEED-CUTS.md)
 const fullTier = process.argv.includes('--full');
+// (E2E-SPEED-2, Noah 11-22) --fast: the sanity set, one flow per risk area (FAST_FLOWS in tools/lib/e2e-flows.mjs) and the flows --only names (the
+// batch's touched flows). Light-only batches only: a strict batch never uses it (AGENTS.md speed rules 9, 10); summary.json says `tier: 'fast'`
+const fastTier = process.argv.includes('--fast');
 const flowsArg = argOf('--flows');
 const exact = flowsArg == null ? null : flowsArg.split(',').map((w) => w.trim()).filter(Boolean);
 const ports = portsArg ? portsArg.split(',').map(Number) : null;
 if (!['free', 'stub'].includes(mode) || (only && !only.length) || !(Number.isInteger(clients) && clients >= 1) || !(stagger >= 0)
-  || (ports && (ports.length < clients || ports.some((p) => !(Number.isInteger(p) && p > 0)))) || (exact && (only || clients > 1))) {
-  console.error('usage: node tools/e2e.mjs free|stub [--only word,word] [--keep-world] [--clients N [--ports p1,p2] [--stagger s]] [--skip-unchanged] [--plan]');
+  || (ports && (ports.length < clients || ports.some((p) => !(Number.isInteger(p) && p > 0)))) || (exact && (only || clients > 1 || fastTier))
+  || (fastTier && (mode !== 'stub' || fullTier))) {
+  console.error('usage: node tools/e2e.mjs free|stub [--only word,word] [--fast (stub; light-only batches)] [--full] [--keep-world] [--clients N [--ports p1,p2] [--stagger s]] [--skip-unchanged] [--plan]');
   process.exit(2);
 }
 // the slot rule (AGENTS.md "Capacity", slice SQ): every client takes one slot from Architect's machine-wide queue (tools/lib/slot-queue.mjs:
@@ -483,6 +487,20 @@ async function takeSlot() {
 
 const realPath = (p) => { try { return fs.realpathSync(p); } catch { return path.resolve(p); } };
 
+/** This run's sidecar data ({mode, dir}, ramSidecarData), set in preflight. */
+let sidecarDir = null;
+
+/**
+ * (E2E-SPEED-2) The RAM disk's floor before this client's first launch (not its relaunches: its data is already there), only when its sidecar data
+ * is on the RAM disk: waits, bounded, then a FAIL naming the free space and the floor (tools/lib/disk.mjs waitTmpFloor).
+ */
+async function ramFloor() {
+  if (sidecarDir?.mode !== 'ram') return;
+  const r = await waitTmpFloor(sidecarDir.dir, { log: (m) => console.log(m) });
+  if (!r.ok) throw Object.assign(new Error(r.message), { check: 'ram floor' });
+  console.log(r.message);
+}
+
 async function preflight() {
   if (fs.existsSync(path.join(GAME, 'architect', 'sidecar-data', 'secrets.json'))) throw new Error('the claude-login opt-in exists (mod/run/architect/sidecar-data/secrets.json): remove it');
   // this checkout's clients only (a worktree's path is not steward-mc/...), and of those only one on this run dir (a --clients run's other clients
@@ -505,6 +523,7 @@ async function preflight() {
   if (swept.failed.length) console.log(`tmp-sweep: ${swept.failed.length} failed (${swept.failed.join(', ')})`);
   if (swept.overCap) console.log(`tmp-sweep: kept dirs still total ${(swept.keptBytes / 1024 ** 3).toFixed(2)} GiB, past the ${(kept.keptCapBytes / 1024 ** 3).toFixed(2)} GiB cap: the rest belong to live runs`);
   const sd = ramSidecarData(GAME, process.env, undefined, { fresh: true, own: true });
+  sidecarDir = sd;
   ok('preflight', `no credentials, no other client; sidecar data on ${sd.mode === 'ram' ? `the RAM disk (${sd.dir})` : 'disk'}${sd.moved ? `, the old one kept at ${sd.moved}` : ''}${sd.owned ? ', removed at the end' : ''}`);
 }
 
@@ -10370,7 +10389,12 @@ function flowKey(f) {
 let planMemo = null;
 function planFlows() {
   if (planMemo) return planMemo;
-  let why = exact ? new Map(exact.map((n) => [n, ''])) : pickFlows(flows, only);
+  let why = exact ? new Map(exact.map((n) => [n, ''])) : fastTier ? fastPick(flows, only) : pickFlows(flows, only);
+  if (fastTier && !exact) {
+    const missing = fastNames().filter((n) => !flows.some((f) => f.name === n));
+    if (missing.length) throw new Error(`--fast: the fast set names flows e2e.mjs doesn't: ${missing.join(', ')}`);
+    console.log(`--fast (light-only batches; never a strict batch): ${[...why.keys()].join(', ')}${only ? ` (with --only ${only.join(',')})` : ''}, plus the sanity set`);
+  }
   // (B092-LEFT, Noah via parent 11-21) a nightly-only flow (a known upstream fault makes it fail at random) runs in the nightly (E2E_NIGHTLY=1) or
   // when --only names it exactly; otherwise it is skipped with its reason, so a batch or slice run isn't failed by it
   // (E2E-SPEED, Noah 11-21) a full-tier flow runs with --full or in the nightly; otherwise skipped the same way (tierSkips, docs/SPEED-CUTS.md)
@@ -10454,6 +10478,9 @@ async function lead() {
     return { k, flows: l.flows, packed: l.seconds, untimed: l.untimed, sidecarPort: sp, devPort: sp + 1, gameDir: k === 1 ? path.join(ROOT, 'mod', 'run') : path.join(ROOT, 'mod', laneDirName(k, RUN_TAG)), out: path.join(BASE, `c${k}`) };
   });
   for (const c of plan) console.log(`client c${c.k} (${c.sidecarPort}/${c.devPort}, ${path.relative(ROOT, c.gameDir)}): ~${c.packed}s recorded${c.untimed ? `, ${c.untimed} untimed` : ''}: ${c.flows.join(', ') || 'the sanity set only'}`);
+  // (E2E-SPEED-2) the projected wall: each lane's start (the stagger, else the queue's 120 s settle), about 4 min of launch, sanity set and restart, its flows
+  const proj = projectWall(lanes, { sanity: LANE_OVERHEAD_S, stagger: stagger || 120 });
+  console.log(`projected wall ~${Math.round(proj.wall / 60)} min for ${lanes.reduce((a, l) => a + l.seconds, 0)}s of flows on ${lanes.length} client(s) (lanes end ~${proj.lanes.map((x) => Math.round(x / 60)).join('/')} min)`);
   if (PLAN) process.exit(0);
   // slice SQ: one slot per client, held by this lead (its pid) and handed to the client's run (E2E_SLOT_TICKET); a lane whose slot doesn't come
   // runs after c1 on c1's slot, run dir and ports (runLanes)
@@ -10506,6 +10533,12 @@ async function lead() {
     prefix(child.stderr, process.stderr);
     const t0 = Date.now();
     const code = await new Promise((r) => child.on('close', (x) => r(x ?? 1)));
+    // (E2E-SPEED-2 item 5) a child that ended without emptying its RAM-disk sidecar dir (SIGKILLed past its stop bound): emptied here, proven its
+    // (this lane's game dir in the marker, the child's pid, gone, no JVM on the dir); a failed lane's evidence into its kept world first
+    const sumNow = readJson(path.join(c.out, 'summary.json'), null);
+    const keptWorld = sumNow?.cleanup?.kept?.find((k) => k.what === 'the e2e world' && path.resolve(path.dirname(k.path)) === path.resolve(at.gameDir, 'saves'))?.path;
+    const reap = reapSidecar(at.gameDir, { pid: child.pid, ...(keptWorld && !fs.existsSync(path.join(keptWorld, 'steward-sidecar-evidence')) ? { evidenceTo: path.join(keptWorld, 'steward-sidecar-evidence') } : {}) });
+    if (reap.outcome === 'emptied' || reap.outcome === 'live' || reap.outcome === 'failed') console.log(`tmp: client c${c.k}'s sidecar dir ${reap.dir ?? '?'}: ${reap.outcome}${reap.why ? ` (${reap.why})` : ''}`);
     return { ...c, ...(host ? { gameDir: at.gameDir, sidecarPort: at.sidecarPort, devPort: at.devPort, borrowed: `c${host.k}` } : {}), slot: s.slot ?? null, code, seconds: Math.round((Date.now() - t0) / 1000), summary: readJson(path.join(c.out, 'summary.json'), null) };
   };
   // a Ctrl-C or kill of the lead stops its clients' runs (each quits its own client); its slots are released on the way out (slot-queue)
@@ -10533,6 +10566,7 @@ try {
     freshWorld();
     ensureStubEntry();
     await takeSlot();
+    await ramFloor();
     launch();
     await connect();
     const r = await cmd('/steward status');
@@ -10606,7 +10640,9 @@ try {
       await flow('composed-sculpt', 'composed module hall sculpt plan water undo', () => composedSculptFlow());
       await flow('composed-sculpt-survival', 'composed module hall sculpt survival stockpile bill refund water', () => composedSculptSurvivalFlow());
       // (B092-FIX, batch 092 GPT review P2) the same town halted uncleanly part way through the river's paid lining, restarted, finished and undone
-      await flow('composed-sculpt-survival-crash', 'composed module hall sculpt survival stockpile bill refund water restart crash', () => composedSculptSurvivalFlow({ crash: true }));
+      // (E2E-SPEED-2, Noah 11-22: "Nightly-only until PLR") the lining-halt crash hits B092L-1 too; back in batch runs once the pin carries PLR
+      await flow('composed-sculpt-survival-crash', 'composed module hall sculpt survival stockpile bill refund water restart crash', () => composedSculptSurvivalFlow({ crash: true }), [],
+        { nightlyOnly: 'until Architect PLR (B092L-1): orphaned placing site after a mid-lining halt' });
       // (B092-LEFT) a stale artifact on a sculpt site: stopped before any re-check, pin, quote, realise or spend; a new Start plans it anew
       // (B092-LEFT, batch 092 GPT review P2) the crash points left: during the free carve, the free water, and the undo's refund crediting
       // nightly-only until Architect fixes the orphaned 'placing' terrain site after a mid-carve halt (ARCHITECT-ASKS, 11-21: the fluids stage waits forever, 1 in 3)
@@ -10653,7 +10689,7 @@ try {
 } catch (e) {
   // a slot that never came: the run didn't start, which is a wait and not a FAIL
   if (e.code === 'SLOT_TIMEOUT') slotWait = e.record;
-  else fail('run', e.message);
+  else fail(e.check ?? 'run', e.message);
 } finally {
   // a signal's shutdown owns the way out (its stop, release and cleanup, in that order, then the exit): nothing here may release or remove first,
   // checked again after each await (fix-check P2: a signal during the quit)
@@ -10668,8 +10704,13 @@ try {
   if (client && client.exitCode === null) client.kill();
   // the client is done for good: its slot goes back (an owner's slot is the owner's to release)
   if (slot?.ticket && !slot.inherited) releaseSlot(slot.ticket);
-  // the client is gone: this run's sidecar dir goes (slice TMPSWEEP; the exit hook covers the ways out that skip this)
-  for (const [dir, how] of cleanupOwned()) console.log(`tmp: ${how} ${dir}`);
+  // (E2E-SPEED-2 item 5) a failed run's small sidecar evidence (logs, job JSON) goes into its kept world first, on the main disk
+  if (!LEAD && sidecarDir?.mode === 'ram' && results.some((r) => !r.ok) && fs.existsSync(WORLD) && !E2E_WORLD.protect) {
+    const ev = copyEvidence(sidecarDir.dir, path.join(WORLD, 'steward-sidecar-evidence'));
+    console.log(`tmp: ${ev.files} evidence file(s) (${Math.round(ev.bytes / 1024)} KiB) copied to ${ev.dest}${ev.skipped ? `, ${ev.skipped} too large or unreadable` : ''}`);
+  }
+  // the client is gone: this run's sidecar dir goes (slice TMPSWEEP; the exit hook covers the ways out that skip this), retried while a straggler writes
+  for (const [dir, how] of await cleanupOwnedSettled()) console.log(`tmp: ${how} ${dir}`);
 }
 const clientRows = [];
 if (laneRuns) {
@@ -10706,7 +10747,7 @@ if (cleanup) {
   for (const f of cleanup.failed) console.log(`disk: not deleted ${f.path ?? '?'}${f.client ? ` [${f.client}]` : ''}: ${f.why}`);
   if (cleanup.note) console.log(`disk: ${cleanup.note}`);
 }
-fs.writeFileSync(path.join(OUT, 'summary.json'), JSON.stringify({ mode, only, skipped, ...(skipUnchanged ? { unchanged } : {}), ...(CLIENT ? { client: CLIENT } : {}), ...(laneRuns ? { clients: clientRows } : {}), ...(slotWait ? { slot: slotWait } : slot ? { slot: { slot: slot.slot ?? null, ticket: slot.ticket ?? null, ...(slot.off ? { off: true } : {}), ...(slot.inherited ? { inherited: true } : {}) } } : {}), at: new Date().toISOString(), seconds, failed, ...(cleanup ? { cleanup } : {}), sanitySeconds: laneRuns ? null : flowsAt ? Math.round((flowsAt - started) / 1000) : null, flows: flowTimes, results }, null, 2));
+fs.writeFileSync(path.join(OUT, 'summary.json'), JSON.stringify({ mode, only, ...(fastTier ? { tier: 'fast' } : {}), skipped, ...(skipUnchanged ? { unchanged } : {}), ...(CLIENT ? { client: CLIENT } : {}), ...(laneRuns ? { clients: clientRows } : {}), ...(slotWait ? { slot: slotWait } : slot ? { slot: { slot: slot.slot ?? null, ticket: slot.ticket ?? null, ...(slot.off ? { off: true } : {}), ...(slot.inherited ? { inherited: true } : {}) } } : {}), at: new Date().toISOString(), seconds, failed, ...(cleanup ? { cleanup } : {}), sanitySeconds: laneRuns ? null : flowsAt ? Math.round((flowsAt - started) / 1000) : null, flows: flowTimes, results }, null, 2));
 if (!CLIENT) recordRun(flowTimes);
 if (laneRuns) {
   const sum = flowTimes.reduce((a, f) => a + f.seconds, 0);

@@ -210,3 +210,51 @@ export function tierSkips(list, why, { nightly = false, full = false, only = nul
   }
   return out;
 }
+
+// ------------------------------------------------------------------ slice E2E-SPEED-2: the fast set for light-only batches
+
+/**
+ * (E2E-SPEED-2, Noah 11-22: "1+2+3: all speed items") The fast set: what `--fast` runs besides the sanity set (status, the claim and its steward,
+ * Expand, the restart: not flows, always run), one stub flow per risk area, by exact name (pickFlows' words match substrings: `survival` alone
+ * picks dozens). For light-only batches (no strict slice); a strict batch never uses it (AGENTS.md speed rules 9 and 10). docs/SPEED-CUTS.md.
+ * Neither sculpt crash flow is in it (Architect B092L-1), nor any nightly-only or full-tier flow.
+ */
+export const FAST_FLOWS = {
+  'survival billing and refund': ['survival'],
+  'a composed build with conservation': ['composed-modules-survival'],
+  'module billing': ['module-hall-survival'],
+  'undo and revert': ['revision', 'discard'],
+  districts: ['district-region'],
+  'a crash and restart': ['composed-hall-fill-restart'],
+};
+export const fastNames = () => [...new Set(Object.values(FAST_FLOWS).flat())];
+
+/**
+ * The flows a `--fast` run picks: the fast set by exact name, plus pickFlows' choice for `words` (the batch's touched flows: their names, tags or
+ * words; none: the fast set alone), each with what it needs. Same shape as pickFlows: name -> '' when picked, else the flow that needs it. A fast
+ * name missing from `list` is left out (a free run, say).
+ */
+export function fastPick(list, words = null, names = fastNames()) {
+  const why = words?.length ? pickFlows(list, words) : new Map();
+  for (const f of list) if (names.includes(f.name)) why.set(f.name, '');
+  const pull = (f) => {
+    for (const n of f.needs ?? []) {
+      if (!why.has(n)) why.set(n, f.name);
+      pull(list.find((x) => x.name === n));
+    }
+  };
+  for (const f of list) if (why.has(f.name)) pull(f);
+  return new Map(list.filter((f) => why.has(f.name)).map((f) => [f.name, why.get(f.name)]));
+}
+
+/**
+ * The projected wall seconds of a --clients run from its packed lanes: lane k starts (k-1) * stagger after the first, then runs its own sanity set
+ * (`sanity` s: start, claim, Expand) and its flows; the wall is the latest lane's end. -> { wall, lanes: [end s] }.
+ */
+export function projectWall(lanes, { sanity = 0, stagger = 0 } = {}) {
+  const ends = lanes.map((l, i) => i * stagger + sanity + (l.seconds ?? 0));
+  return { wall: Math.max(0, ...ends), lanes: ends };
+}
+
+/** A lane's own time besides its flows: the client's launch, the sanity set and the closing restart (batches 090-096: about 3-4 min). */
+export const LANE_OVERHEAD_S = 240;
