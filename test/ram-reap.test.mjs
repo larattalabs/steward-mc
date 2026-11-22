@@ -72,6 +72,7 @@ test('a target outside <root>/steward, nested under it, or not named sidecar-*: 
   const cases = [
     path.join(out, 'sidecar-abc'), // outside the root
     path.join(root, 'steward', 'sidecar-abc', 'inner'), // nested
+    path.join(root, 'steward', 'sidecar-abc', 'sidecar-def'), // nested, named like a sidecar dir
     path.join(root, 'steward', 'node-compile-cache'), // not a sidecar dir
   ];
   for (const [i, dir] of cases.entries()) {

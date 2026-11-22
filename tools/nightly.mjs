@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Steward's nightly full e2e (Noah, 2026-11-10; AGENTS.md DEV MODE: full stub and free runs are nightly). At 23:00 the LaunchAgent
 // dev.larattalabs.steward-nightly runs this: fetch origin, move the nightly's own worktree (../_work/steward-nightly) to a detached
-// origin/main, build the mod there (compile, unit tests, jar), then `node tools/e2e.mjs free` and `node tools/e2e.mjs stub` there, and write
+// origin/main, build the mod there (compile, unit tests, jar), then `node tools/e2e.mjs free` and `node tools/e2e.mjs stub --clients 2` (E2E-SPEED-2) there, and write
 // the night's results to this checkout's artifacts/nightly/<date>/ (free/stub summary.json, logs, SUMMARY.md). $0: the e2e never spends and
 // refuses while the claude-login opt-in exists. No notification of any kind.
 //
@@ -13,14 +13,15 @@
 //
 // It never kills a process it didn't start and never touches another checkout's tree:
 //   - one nightly at a time: artifacts/nightly/nightly.lock (pid); a live holder -> exit 0 ("already active");
-//   - the night is skipped (exit 0, SUMMARY.md says why) if artifacts/nightly/skip-<local date> exists (one night, on purpose), if the e2e ports (8590/8591) are taken,
+//   - the night is skipped (exit 0, SUMMARY.md says why) if artifacts/nightly/skip-<local date> exists (one night, on purpose), if the e2e ports (8590/8591, and 8600/8601 for the stub's second client) are taken,
 //     or if a claude-login opt-in exists in this checkout or the worktree (other clients are the slot queue's business, not a reason to skip);
 //   - the main checkout is only fetched, never checked out or pulled; the worktree is moved only when clean, else the night is skipped;
 //   - no night below E2E_MIN_FREE_GIB (default 150) free on the worktree's volume: SUMMARY.md says NOSPACE, exit 5 (tools/lib/disk.mjs);
-//   - a hard limit of 2 h 45 min for the whole night: past it, the e2e's own process group (started here) is stopped and the night is a TIMEOUT.
+//   - a hard limit of 2 h 45 min for the whole night: past it, the e2e's own process group (started here) is stopped (SIGTERM, SIGKILL 180 s later)
+//     and the night is a TIMEOUT; after each step its run dirs' RAM-disk sidecar dirs are emptied when their run is gone (reapSidecar).
 // It runs beside Architect's 02:00 nightly without clashing: other ports (Architect's gates use 8890-8905), and each e2e step takes one slot from
 // Architect's machine-wide queue (slice SQ: held by this process, handed to the step's e2e as E2E_SLOT_TICKET, released when the step ends);
-// a slot that doesn't come within its wait skips that step (WAITED, not a FAIL). It ends by about 01:30 on a normal night (free about 7 min, stub about 2 h).
+// a slot that doesn't come within its wait skips that step (WAITED, not a FAIL). It ends by about 01:00 on a normal night (free about 7 min, stub about 90 min on 2 clients).
 import { spawn, execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
