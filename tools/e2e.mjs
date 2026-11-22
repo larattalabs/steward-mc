@@ -17,7 +17,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { pickFlows, groupFlows, packFlows, codeBlocks, closureOf, fixtureRefs, hashPaths, hashText, hashLib, skipDecision, applySkips, isStrict } from './lib/e2e-flows.mjs';
+import { pickFlows, groupFlows, packFlows, codeBlocks, closureOf, fixtureRefs, hashPaths, hashText, hashLib, skipDecision, applySkips, isStrict, mergeFlowSeconds, tierSkips } from './lib/e2e-flows.mjs';
 import { useRamTmp, ramSidecarData, RAM_TMP } from './lib/ram-tmp.mjs';
 import { sweepStale, cleanupOwned, keptBounds } from './lib/tmp-owner.mjs';
 import { checkCommand, saveBarrier } from './lib/save-barrier.mjs';
@@ -66,6 +66,8 @@ const portsArg = argOf('--ports');
 // the queue spaces a run's clients (its settle, 120 s): no stagger of Steward's own unless asked for, or with E2E_SLOTS=off (60 s as before)
 const stagger = Number(argOf('--stagger') ?? (slotsOff() ? 60 : 0));
 const skipUnchanged = process.argv.includes('--skip-unchanged');
+// (E2E-SPEED) the full tier: flows tagged `full` run only with --full, in the nightly, or named in --only (docs/SPEED-CUTS.md)
+const fullTier = process.argv.includes('--full');
 const flowsArg = argOf('--flows');
 const exact = flowsArg == null ? null : flowsArg.split(',').map((w) => w.trim()).filter(Boolean);
 const ports = portsArg ? portsArg.split(',').map(Number) : null;
@@ -105,8 +107,8 @@ fs.mkdirSync(OUT, { recursive: true });
 const results = [];
 /** The temp blueprint dirs this run made (mkdtemp), removed at its end whatever the outcome (slice E2E-DISK). */
 const tempInputs = [];
-const ok = (check, note = '') => { results.push({ check, ok: true, note }); console.log(`ok ${check}${note ? ' (' + note + ')' : ''}`); };
-const fail = (check, why) => { results.push({ check, ok: false, why }); console.log(`FAIL ${check}: ${why}`); };
+const ok = (check, note = '') => { results.push({ check, ok: true, note, ...flowT() }); console.log(`ok ${check}${note ? ' (' + note + ')' : ''}`); };
+const fail = (check, why) => { results.push({ check, ok: false, why, ...flowT() }); console.log(`FAIL ${check}: ${why}`); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // ------------------------------------------------------------------ the client
@@ -10270,14 +10272,17 @@ let flowsRan = false;
 /** Per flow, for summary.json (Architect GX's first step toward EF): its seconds, the 1-minute load at its start, its checks and failures. */
 const flowTimes = [];
 let flowsAt = 0;
+/** (E2E-SPEED) the running flow's start: each check's row in summary.json carries `t`, its seconds into the flow, so a later sweep can see the phases. */
+let flowT0 = 0;
+function flowT() { return flowT0 ? { t: Math.round((Date.now() - flowT0) / 1000) } : {}; }
 /**
  * Names a flow; runFlows runs them in this order. `needs`: the earlier flows whose world this one builds on (districts needs the settlement proposals
  * describes), pulled into an --only run that picks this flow.
  */
-function flow(name, tags, fn, needs = [], { nightlyOnly = null } = {}) {
+function flow(name, tags, fn, needs = [], { nightlyOnly = null, full = null } = {}) {
   if (flowsRan) throw new Error(`flow ${name} is named after runFlows (or inside a flow): it would never run`);
   for (const n of needs) if (!flows.some((f) => f.name === n)) throw new Error(`flow ${name} needs ${n}, which is not named before it`);
-  flows.push({ name, tags, fn, needs, nightlyOnly });
+  flows.push({ name, tags, fn, needs, nightlyOnly, full });
 }
 /** Runs the named flows (`flow` lines name each, for a rerun of what failed; a pulled-in one says which flow needs it). */
 async function runFlows() {
@@ -10291,6 +10296,7 @@ async function runFlows() {
     if (!why.has(f.name)) continue;
     console.log(`flow ${f.name}${why.get(f.name) ? ` (needed by ${why.get(f.name)})` : ''}`);
     const t0 = Date.now();
+    flowT0 = t0;
     const load = Math.round(os.loadavg()[0] * 10) / 10;
     const before = results.length;
     try {
@@ -10298,6 +10304,7 @@ async function runFlows() {
       await f.fn();
     } finally {
       const mine = results.slice(before);
+      flowT0 = 0;
       flowTimes.push({ name: f.name, seconds: Math.round((Date.now() - t0) / 1000), load, checks: mine.length, failed: mine.filter((r) => !r.ok).length });
     }
   }
@@ -10370,11 +10377,11 @@ function planFlows() {
   let why = exact ? new Map(exact.map((n) => [n, ''])) : pickFlows(flows, only);
   // (B092-LEFT, Noah via parent 11-21) a nightly-only flow (a known upstream fault makes it fail at random) runs in the nightly (E2E_NIGHTLY=1) or
   // when --only names it exactly; otherwise it is skipped with its reason, so a batch or slice run isn't failed by it
-  if (!exact && process.env.E2E_NIGHTLY !== '1') {
-    for (const f of flows) {
-      if (!f.nightlyOnly || !why.has(f.name) || (only ?? []).includes(f.name)) continue;
-      why.delete(f.name);
-      console.log(`skip ${f.name}: nightly-only (${f.nightlyOnly}); name it in --only to run it`);
+  // (E2E-SPEED, Noah 11-21) a full-tier flow runs with --full or in the nightly; otherwise skipped the same way (tierSkips, docs/SPEED-CUTS.md)
+  if (!exact) {
+    for (const sk of tierSkips(flows, why, { nightly: process.env.E2E_NIGHTLY === '1', full: fullTier, only })) {
+      why.delete(sk.name);
+      console.log(`skip ${sk.name}: ${sk.why}`);
     }
   }
   if (skipUnchanged && !exact) {
@@ -10399,14 +10406,9 @@ function planFlows() {
 
 /** The last seconds of each flow: ET's last summary, then flow-times.json (every run's, newest kept); E2E_TIMES names another summary or times file. */
 function flowSeconds() {
-  const out = {};
-  for (const f of [path.join(BASE, 'summary.json'), TIMES, process.env.E2E_TIMES].filter(Boolean)) {
-    const j = readJson(f, null);
-    if (!j) continue;
-    if (Array.isArray(j.flows)) for (const x of j.flows) out[x.name] = x.seconds;
-    else for (const [k, v] of Object.entries(j)) if (Number.isFinite(v?.seconds)) out[k] = v.seconds;
-  }
-  return out;
+  // (E2E-SPEED) the committed baseline first: a fresh worktree (every batch) had none, so its lanes were packed blind (b093: c1 7073 s, c2 4388 s)
+  const files = [path.join(ROOT, 'tools', 'flow-times-baseline.json'), path.join(BASE, 'summary.json'), TIMES, process.env.E2E_TIMES].filter(Boolean);
+  return mergeFlowSeconds(files.map((f) => readJson(f, null)));
 }
 
 /** After a run (not a client of a --clients run): each flow's seconds into flow-times.json, each passed flow's key into passes.json. */
@@ -10577,7 +10579,7 @@ try {
       await flow('plan-build', 'plan', () => planBuildFlow());
       await flow('street-hint', 'plan grid wall nofit', () => streetHintFlow());
       await flow('compose-words', 'plan card', () => composeWordsFlow());
-      await flow('wall-offer', 'wall plan', () => wallOfferFlow());
+      await flow('wall-offer', 'wall plan', () => wallOfferFlow(), [], { full: 'E2E-SPEED: 7.5 min; walls stay covered by survival, quarter and the mech flows' });
       await flow('farm-pond', 'water', () => farmPondFlow());
       await flow('ditch', 'water', () => ditchFlow());
       await flow('irrigation', 'water farm', () => irrigationFlow());
@@ -10623,9 +10625,9 @@ try {
       await flow('composed-modules-restart', 'composed module farm survival stockpile bill restart', () => composedModulesRestartFlow());
       await flow('copper-lots', 'plan material', () => copperLotsFlow());
       await flow('discard', 'plan undo', () => discardFlow());
-      await flow('beside', 'plan', () => besideFlow());
+      await flow('beside', 'plan', () => besideFlow(), [], { full: 'E2E-SPEED: 5 min; Architect D3 join, districts stay covered by district-* flows' });
       await flow('revision', 'plan version revert', () => revisionFlow());
-      await flow('district-region', 'district region', () => districtRegionFlow());
+      await flow('district-region', 'district region', () => districtRegionFlow(), [], { full: 'E2E-SPEED: 2 min; districts stay covered by district-growth, survival-district, plan-district' });
       await flow('district-growth', 'district districts growth region undo restart', () => districtGrowthFlow());
       await flow('survival-district', 'survival districts district growth stockpile bill refund undo restart', () => survivalDistrictFlow());
       await flow('plan-district', 'plan districts district survival stockpile bill refund undo', () => planDistrictFlow());
@@ -10633,7 +10635,7 @@ try {
       await flow('survival-quarter', 'quarter survival district stockpile bill refund undo restart', () => survivalQuarterFlow());
       await flow('quarter-growth', 'quarter district districts growth undo restart orphan', () => quarterGrowthFlow());
       await flow('district-module', 'district districts module farm growth undo', () => districtModuleFlow());
-      await flow('wall-lots', 'wall gatehouse gate', () => wallLotsFlow());
+      await flow('wall-lots', 'wall gatehouse gate', () => wallLotsFlow(), [], { full: 'E2E-SPEED: 12 min; the K3 wall-lot repair loop (Architect-side), gatehouses stay covered by gate-mech-lots' });
       await flow('gate-mech', 'gate wall mechanism portcullis undo', () => gateMechFlow());
       await flow('gate-mech-lots', 'gate wall mechanism portcullis undo', () => gateMechFlow('lots'));
       await flow('gate-mech-swing', 'gate wall mechanism swing undo', () => gateMechFlow('swing'));
