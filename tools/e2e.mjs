@@ -18,6 +18,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { regionUntilBy, readSince } from './lib/region-wait.mjs';
+import { rareFeedDue } from './lib/rare-feed.mjs';
 import { pickFlows, groupFlows, packFlows, codeBlocks, closureOf, fixtureRefs, hashPaths, hashText, hashLib, skipDecision, applySkips, isStrict, mergeFlowSeconds, tierSkips } from './lib/e2e-flows.mjs';
 import { useRamTmp, ramSidecarData, RAM_TMP } from './lib/ram-tmp.mjs';
 import { sweepStale, cleanupOwned, keptBounds } from './lib/tmp-owner.mjs';
@@ -6629,7 +6630,9 @@ async function survivalMechFlow(form = 'lots') {
     from = logSize();
     await cmd(`/steward start ${id} 6 80`);
     // the feeder: all the need but the rare items, until the steward names them (or 3 min of nothing else owed), then everything
-    let stop = false, rareSeen = null, rareFed = false, onlyRareSince = 0;
+    // (E2E-NAMED) the fallback's clock is the build's progress (tools/lib/rare-feed.mjs): the mechanism asks only once its host stands
+    let stop = false, rareSeen = null, rareFed = false;
+    const rareClock = {}, t0 = Date.now();
     // what the feeder saw and did, for a failure's message
     const fed = { polls: 0, noLedger: 0, owed: 0, accepted: 0, refused: 0, lastNeed: null, crates: 0 };
     // the town's ground and wall alone owe ~10,000 items, more than the 2 crates hold while the gate's sites wait: a full stockpile gets
@@ -6656,9 +6659,9 @@ async function survivalMechFlow(form = 'lots') {
         const rare = Object.fromEntries(Object.entries(need).filter(([k]) => RARE.test(k)));
         if (Object.keys(rare).length && !rareSeen) rareSeen = rare;
         const rest = rareFed ? need : Object.fromEntries(Object.entries(need).filter(([k]) => !RARE.test(k)));
-        if (!rareFed && Object.keys(rare).length && !Object.keys(rest).length) {
-          onlyRareSince ||= Date.now();
-          if (named() || Date.now() - onlyRareSince > 180_000) rareFed = true;
+        if (!rareFed && Object.keys(rare).length) {
+          const why = rareFeedDue(rareClock, { now: Date.now(), onlyRare: !Object.keys(rest).length, consumed: units(sp.consumed), named: !!named() });
+          if (why) (rareFed = true, (fed.rareFed = `${why} at ${Math.round((Date.now() - t0) / 1000)} s`));
         }
         if (!Object.keys(rest).length) continue;
         const r = await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: rest }).catch((e) => ({ error: String(e) }));
@@ -6683,7 +6686,7 @@ async function survivalMechFlow(form = 'lots') {
       if (rareSeen) ok('survival wall swings need', `the stockpile owed ${JSON.stringify(rareSeen)} for the gates`);
       else fail('survival wall swings need', 'no iron doors ever owed: no swing billed');
       if (said) ok('survival wall swings named', said[0].slice(0, 180));
-      else fail('survival wall swings named', `the steward never named the gates' items (fed after the 3 min fallback: ${rareFed})`);
+      else fail('survival wall swings named', `the steward never named the gates' items (rare items fed: ${fed.rareFed ?? 'never'}; only rare owed from ${rareClock.onlyRareSince ? Math.round((rareClock.onlyRareSince - t0) / 1000) + ' s' : 'never'}, last consumed ${rareClock.quietSince ? Math.round((rareClock.quietSince - t0) / 1000) + ' s' : '-'})`);
       if (built && doneSaid && swings.length >= 2) ok('survival wall swings built', `${region}: ${swings.length} auto gates are swings (${swings.map(([g, m]) => `${g} ${JSON.stringify(m.bom).slice(0, 60)}`).join('; ')})`);
       else return fail('survival wall swings built', `built ${!!built}; done said ${!!doneSaid}; gateMechanism ${JSON.stringify(gms).slice(0, 240)}; feeder ${JSON.stringify(fed)}`);
     } else if (draw) {
@@ -6692,7 +6695,7 @@ async function survivalMechFlow(form = 'lots') {
       else fail(`${label} need`, 'no repeaters or redstone ever owed: no circuit billed');
       // (GMc-2) "Redstone drawbridge waits for ...", the noun not said twice
       if (said && !/drawbridge's drawbridge/i.test(said[0])) ok(`${label} named`, said[0].slice(0, 180));
-      else fail(`${label} named`, said ? `the noun said twice: ${said[0].slice(0, 180)}` : `the steward never named the circuit's items (fed after the 3 min fallback: ${rareFed})`);
+      else fail(`${label} named`, said ? `the noun said twice: ${said[0].slice(0, 180)}` : `the steward never named the circuit's items (rare items fed: ${fed.rareFed ?? 'never'}; only rare owed from ${rareClock.onlyRareSince ? Math.round((rareClock.onlyRareSince - t0) / 1000) + ' s' : 'never'}, last consumed ${rareClock.quietSince ? Math.round((rareClock.quietSince - t0) / 1000) + ' s' : '-'})`);
       // (LV) the two-way circuit has two comparators
       if (built && doneSaid && gm?.kind === 'drawbridge' && gm.bom?.['minecraft:comparator'] === 2) ok(`${label} built`, `${region} drawbridge; bill ${JSON.stringify(gm.bom).slice(0, 140)}`);
       else return fail(`${label} built`, `built ${!!built}; done said ${!!doneSaid}; gateMechanism ${JSON.stringify(gms).slice(0, 200)}; feeder ${JSON.stringify(fed)}`);
@@ -6702,7 +6705,7 @@ async function survivalMechFlow(form = 'lots') {
       else fail(`${label} need`, `no ${swing ? 'iron doors' : 'comparators, observers or daylight detectors'} ever owed: no mechanism billed`);
       // (Architect WE) the move to the mechanism's bill wait fires one ITEM_WAITING whose waitsFor.say names the missing items
       if (said) ok(`${label} named`, said[0].slice(0, 180));
-      else fail(`${label} named`, `the steward never named the gate's items (fed after the 3 min fallback: ${rareFed})`);
+      else fail(`${label} named`, `the steward never named the gate's items (rare items fed: ${fed.rareFed ?? 'never'}; only rare owed from ${rareClock.onlyRareSince ? Math.round((rareClock.onlyRareSince - t0) / 1000) + ' s' : 'never'}, last consumed ${rareClock.quietSince ? Math.round((rareClock.quietSince - t0) / 1000) + ' s' : '-'})`);
       if (built && doneSaid && gm?.bom) ok(`${label} built`, `${region} ${gate}: ${swing ? `the iron swing gate in ${gm.wall}` : gm.roof != null ? `sensor at ${gm.roof}` : gm.deviation}; bill ${JSON.stringify(gm.bom).slice(0, 120)}`);
       else return fail(`${label} built`, `built ${!!built}; done said ${!!doneSaid}; gateMechanism ${JSON.stringify(gm).slice(0, 160)}; feeder ${JSON.stringify(fed)}`);
     }
