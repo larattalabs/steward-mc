@@ -1894,6 +1894,17 @@ takes everything a module lot needs (plan/0 `lot.size`, `irrigate`, `field`, `ex
   retire it), so stage completion counts the tile once. A failing-first row on Architect's side (halt mid-forms, restart, the stage completes).
 - **Steward meanwhile:** the flow is nightly-only (Noah via parent, 11-21); every crash flow fails after 5 minutes without progress, naming the open
   queue items.
+- **Added 2026-11-22 (batch 094):**
+  - **A mid-lining halt hits the same bug.** `composed-sculpt-survival-crash` halts during the lining. It stalled 2 of 3 times when run after
+    other flows in one client, and 0 of 24 runs in other shapes. Both stalled worlds have the same shape:
+    - an orphan with `placing:true` and construction `building`: c41, tile forms|terrain|85,1546, rg6; and c38, tile 71,1546;
+    - the same tile placed again and built (c42, c39);
+    - forms at 11 of 12, fluids at 0 of 12;
+    - the startup pass reports "found nothing lagging".
+  - **The orphan also blocks undo.** The region's removal never finishes: rg6 never logs "removal done", and its build resumes at PLACING on every
+    later start, while other regions removed normally.
+  - **Ask:** the fix also covers the undo/removal path. A failing-first row would halt mid-forms, restart, then undo, and the removal completes.
+  - **Evidence:** `_work/steward-batch-094/logs/ab/kept/` (the worlds) and `logs/stall/cap-growth/` (the game logs). Pin 0.89.0.
 
 ### T4RD: Steward's review of T4R-D (player blocks owed, cascade ownership, admission; 2026-11-21, revisions 1-3)
 
