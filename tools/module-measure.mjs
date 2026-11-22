@@ -23,6 +23,8 @@ import { acquire as acquireSlot, release as releaseSlot } from './lib/slot-queue
 import { repairSidecarData } from './lib/ram-tmp.mjs';
 import { claimAnswerFile } from './lib/disk.mjs';
 import { checkCommand } from './lib/save-barrier.mjs';
+import { judgeCargo, judgeRestart, owedTotal } from './lib/owed-cargo.mjs';
+import { t4Gate } from './lib/t4-rows.mjs';
 import { CROPS, T as TCYCLE, CYCLES, DAY, USEFUL_PER_CROP_DAY, bands as barBands } from './lib/crop-farm-bars.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -974,6 +976,9 @@ async function survival() {
     }
     check(out.land.partsSame, `6b land check: the town's and the growths' parts as before the field was worked`);
     // ---- 6d, 7b: undo every growth, newest first; refunds
+    // (T4RD-S, S-1) on T4R-D the placer's blocks are owed to it (owedParts, reason player_blocks), never dropped: judged by owed, the ground 0
+    const t4 = t4Gate(await mod({ op: 'env' }).catch(() => null)).run;
+    const placer = t4 ? String((await call('dev.pt.uuid', { name: PLACER }, 10_000))?.uuid ?? '') : '';
     const ledger0 = await pile();
     await mod({ op: 'takeItems', box: [x0 - 300, gy - 4, z0 - 300, x0 + 600, gy + 60, z0 + 600] });
     await standAt(x0 - 20, z0 - 20, gy + 2);
@@ -997,14 +1002,22 @@ async function survival() {
       g.undo = { removed: u.removed, blockers: u.blockers ?? [], refused: u.refused ?? null, credited, overflow, cargo, want };
       check(u.removed === true && !(u.blockers ?? []).length, `6d undo rid ${g.rid}: removed ${u.removed}, blockers ${json(u.blockers ?? [])}${u.refused ? ` (${u.refused})` : ''}`);
       check(same(back, want), `7b refund rid ${g.rid}: credited (with overflow) = consumed less one construction seed per harvested cell (${same(back, want) ? 'equal' : `off by ${json(minus(back, want))}`})`, { back, want });
+      const wantPerFarm = {};
+      let wantAll = {};
       for (const id of g.farms) {
         const wantCargo = plus(Object.fromEntries(crops.map((c) => [plantOf(c), 0])), {});
         for (const c of crops) wantCargo[plantOf(c)] = (wantCargo[plantOf(c)] ?? 0) + out.farms[id].replanted[c];
         wantCargo['minecraft:cobblestone'] = 1;
         wantCargo['minecraft:torch'] = 1;
-        check(same(cargo[id], wantCargo), `7b cargo ${id}: each player replant's planting item once, the cobblestone and the torch, as the player's (dropped, never credited): ${json(cargo[id])}`, { wantCargo });
+        wantPerFarm[id] = wantCargo;
+        wantAll = plus(wantAll, wantCargo);
       }
+      const cj = judgeCargo({ t4, undo: u, placer, ground: cargo, want: wantAll, wantPerFarm });
+      g.undo.owedParts = u.owedParts ?? null;
+      check(cj.ok, t4 ? `7b cargo rid ${g.rid}: each player replant's planting item once, the cobblestone and the torch, owed to the player (never dropped, never credited): ${cj.why}`
+        : `7b cargo rid ${g.rid}: each player replant's planting item once, the cobblestone and the torch, as the player's (dropped, never credited): ${cj.why}`, { wantPerFarm, cargo });
     }
+    const placerOwedBefore = t4 ? owedTotal(await call('dev.stockpile.owed', { recipient: placer }, 120_000)) : {};
     const ledger1 = await pile();
     out.items = { consumedTotal: minus(ledger1.ledger?.consumed, ledger0.ledger?.consumed) };
     // a restart after the undo gives nothing twice
@@ -1017,7 +1030,10 @@ async function survival() {
     await sleep(6000);
     const ledger2 = await pile();
     const stray = (await mod({ op: 'takeItems', box: [x0 - 300, gy - 4, z0 - 300, x0 + 600, gy + 60, z0 + 600] })).items;
-    check(json(ledger2.ledger) === json(ledger1.ledger) && json(ledger2.stock) === json(ledger1.stock) && Object.keys(stray).length === 0, `7b after a restart: nothing given twice (the ledger and stock unchanged; items on the ground ${json(stray)})`);
+    // (T4RD-S) and on T4R-D the placer's owed entries as they were (read from Architect's owed store, never a log line)
+    const placerOwedAfter = t4 ? owedTotal(await call('dev.stockpile.owed', { recipient: placer }, 120_000)) : {};
+    const rj = judgeRestart({ t4, before: placerOwedBefore, after: placerOwedAfter, stray });
+    check(json(ledger2.ledger) === json(ledger1.ledger) && json(ledger2.stock) === json(ledger1.stock) && rj.ok, `7b after a restart: nothing given twice (the ledger and stock unchanged; ${rj.why})`);
   } finally {
     await stopClient().catch((e) => log(`stop: ${e}`));
   }

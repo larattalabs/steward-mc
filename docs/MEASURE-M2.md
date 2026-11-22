@@ -187,6 +187,10 @@ crops, rustic. Fed from the stockpile until PLACED.
   - The stockpile is credited exactly the consumption, less one construction seed for every cell the player harvested.
   - Every player replant gives back its planting item exactly once, as the player's: dropped at the site, never credited.
   - The cobblestone and the torch come back as the player's.
+  - (T4RD-S, from the Architect release carrying T4R-D) The player's blocks are no longer dropped: they are owed to their placer
+    (`RemoveResult.owedParts`, reason `player_blocks`, recipient `dev.pt.uuid` of `M2Farmer`), summed over the growth's farms, and the ground
+    holds none. After the restart the placer's owed entries (`dev.stockpile.owed`) read the same and the ground stays empty. The tool picks the
+    judge by Architect's `removal_finished` feature (`tools/lib/owed-cargo.mjs`); an older Architect keeps the dropped-items judge.
   - Items in = items out:
 
     ```
