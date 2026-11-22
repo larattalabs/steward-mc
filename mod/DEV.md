@@ -396,6 +396,37 @@ Without these flags a run is as before: one client on `mod/run`, every chosen fl
     runs. The summary lists the skipped flows under `unchanged`.
 - **`--plan`** prints the skips and the packing and starts nothing.
 
+#### Speed sweep (slice E2E-SPEED, 2026-11-21; the cuts are in `docs/SPEED-CUTS.md`)
+
+The slowest flows in b093's full 2-client stub run (433 checks, wall 7134 s for 11345 s of flows). Lanes came out c1 7073 s, c2 4388 s,
+packed blind (see below).
+
+| Flow | s | Where the time went (run 1's per-check `t`) |
+|---|---|---|
+| wall-lots | 725 | 600 s: the undo's REMOVED wait ran to its bound |
+| supplied-growth | 720 | 3 restarts; builds from materials |
+| drawbridge | 691 | 600 s: REMOVED wait at its bound |
+| gate-mech-lots | 677 | 600 s: REMOVED wait at its bound |
+| gate-mech | 650 | 600 s: REMOVED wait at its bound |
+| gate-mech-swing | 643 | 600 s: REMOVED wait at its bound |
+| wall-offer | 453 | 3 x 120 s REMOVED waits at their bound |
+| module-survival | 448 | about 330 s in the report-only waiting round |
+| revision | 336 | 300 s: REMOVED wait at its bound |
+| survival-district | 304 | builds and refunds |
+
+- **Lanes by time.** `flowSeconds()` reads `tools/flow-times-baseline.json` first, then this worktree's summary.json, `flow-times.json` and
+  `E2E_TIMES`; later sources win per flow.
+  - Run 1 (`--full`, load up to 85): lanes c1 6708 s and c2 6777 s, wall 6900 s, against b093's 7073 s and 4388 s.
+  - Refresh the baseline after a full run that adds flows or changes them a lot: copy each flow's `seconds` from that run's
+    `artifacts/e2e/flow-times.json` into its `seconds` map.
+- **REMOVED waits.** A removed region is answered `{missing: true}`. It now reads as REMOVED, and a wait past its bound fails with TIMEOUT
+  (`tools/lib/region-wait.mjs`).
+  - In run 3, under load 86, the four gate-mech flows took 186 s, 370 s, 214 s and 500 s, against 650, 677, 643 and 691 s.
+- **The log over midnight.** `logSince` reads bytes and reads a rolled-over log whole. Before, every log wait across 00:00 stalled to its
+  bound: run 2's supplied-growth and module-hall-survival, and batch 094's supplied growth cancel.
+- **Per-check `t`.** Each check row in summary.json carries `t`, its seconds into the flow, so the next sweep can see the phases.
+- **`--full`** runs the tier left out of batch runs (now: module-survival's report-only waiting round). The nightly runs it as well.
+
 ## lab-ui
 
 lab-ui (`dev.larattalabs:lab_ui`), the shared client UI library, is bundled jar-in-jar. `mod/settings.gradle` decides where Gradle gets it, with the same rule as
