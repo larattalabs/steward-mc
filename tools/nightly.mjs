@@ -30,6 +30,8 @@ import { useRamTmp } from './lib/ram-tmp.mjs';
 import { acquire as acquireSlot, release as releaseSlot } from './lib/slot-queue.mjs';
 import { onStop, waitFor, shuttingDownNow } from './lib/shutdown.mjs';
 import { checkFreeSpace, EXIT_LOW_DISK } from './lib/disk.mjs';
+import { NIGHTLY_PORTS, NIGHTLY_CLIENTS, LIMIT_MIN, STOP_GRACE_MS, stepArgs, nightFits } from './lib/nightly-plan.mjs';
+import { reapSidecar } from './lib/ram-tmp.mjs';
 
 // (batch-074 fix-check) a signal stops the running step's process group (its e2e quits its own client) before the night's slot goes back
 const running = new Set();
@@ -49,8 +51,9 @@ const LOCK = path.join(OUT_ROOT, 'nightly.lock');
 const LABEL = 'dev.larattalabs.steward-nightly';
 const PLIST = path.join(os.homedir(), 'Library', 'LaunchAgents', `${LABEL}.plist`);
 const LOG = path.join(os.homedir(), 'Library', 'Logs', 'steward-nightly.log');
-const PORTS = [8590, 8591];
-const LIMIT_MS = (2 * 60 + 45) * 60_000;
+// (E2E-SPEED-2) the stub on 2 clients: c1 8590/8591, c2 8600/8601 (tools/lib/nightly-plan.mjs); all four must be free
+const PORTS = NIGHTLY_PORTS;
+const LIMIT_MS = LIMIT_MIN * 60_000;
 const KEEP_DAYS = 21;
 const JAVA_HOME = '/opt/homebrew/opt/openjdk@25';
 
@@ -84,7 +87,9 @@ async function night(dry) {
   }
   if (dry) {
     log(space.message);
-    log(`would run: worktree ${WT} at origin/main, build, e2e free, e2e stub; results in ${out}`);
+    log(`would run: worktree ${WT} at origin/main, build, e2e ${stepArgs('free').join(' ')}, e2e ${stepArgs('stub').join(' ')} (E2E_NIGHTLY=1); results in ${out}`);
+    log(`ports: ${NIGHTLY_PORTS.join(', ')} (c1 ${NIGHTLY_PORTS.slice(0, 2).join('/')}, c2 ${NIGHTLY_PORTS.slice(2, 4).join('/')}), all free`);
+    dryFit();
     return;
   }
   fs.mkdirSync(OUT_ROOT, { recursive: true });
@@ -120,10 +125,12 @@ async function night(dry) {
         const stepEnv = slot.ticket ? { ...env, E2E_SLOT_TICKET: slot.ticket, E2E_SLOT: String(slot.slot) } : env;
         let r;
         try {
-          r = await run(mode, [process.execPath, path.join(WT, 'tools', 'e2e.mjs'), mode], WT, out, deadline, stepEnv);
+          r = await run(mode, [process.execPath, path.join(WT, 'tools', 'e2e.mjs'), ...stepArgs(mode)], WT, out, deadline, stepEnv);
         } finally {
           if (slot.ticket) releaseSlot(slot.ticket, { log });
         }
+        // (E2E-SPEED-2 item 5) a step stopped at the night's limit leaves its clients' RAM-disk sidecar dirs: emptied, each proven this worktree's
+        reapWorktree();
         const sum = path.join(WT, 'artifacts', 'e2e', 'summary.json');
         if (fs.existsSync(sum)) {
           fs.copyFileSync(sum, path.join(out, `${mode}-summary.json`));
@@ -148,6 +155,35 @@ async function night(dry) {
     prune();
   } finally {
     fs.rmSync(LOCK, { force: true });
+  }
+}
+
+/**
+ * (E2E-SPEED-2) --dry: whether the 2-lane stub fits the night, from the e2e's own packing (`stub --plan`, E2E_NIGHTLY=1: the nightly-only and full
+ * flows in) on this checkout's tools and baseline (crash-carve as its estimate there), plus module-survival's report-only round (about 5 min), untimed.
+ */
+function dryFit() {
+  let txt = '';
+  try {
+    txt = execFileSync(process.execPath, [path.join(MAIN, 'tools', 'e2e.mjs'), ...stepArgs('stub'), '--plan'], { cwd: MAIN, encoding: 'utf8', env: { ...process.env, E2E_NIGHTLY: '1', E2E_SLOTS: 'off' } });
+  } catch (e) {
+    log(`fit: e2e stub --plan failed (${e.message.split('\n')[0]})`);
+    return;
+  }
+  const lanes = [...txt.matchAll(/^client c\d+ \(([\d/]+), [^)]*\): ~(\d+)s recorded/gm)].map((m) => ({ ports: m[1], s: Number(m[2]) }));
+  const fit = nightFits({ lanes: lanes.map((l) => l.s), extra: 5 * 60 });
+  log(`fit: ${NIGHTLY_CLIENTS} lanes ${lanes.map((l) => `${l.ports} ~${Math.round(l.s / 60)} min`).join(', ')}; the night ~${fit.minutes} min of ${fit.limit} (build and free 15, `
+    + `4 min per lane, the 120 s stagger, 5 untimed): ${fit.fits ? `fits, ${fit.margin} min spare` : 'DOES NOT FIT'}`);
+}
+
+/** The sidecar dirs of this worktree's game dirs (mod/run, mod/run-c<k>-<tag>) whose run is gone, emptied (reapSidecar proves each). */
+function reapWorktree() {
+  const mod = path.join(WT, 'mod');
+  let names = [];
+  try { names = fs.readdirSync(mod).filter((n) => n === 'run' || /^run-c\d+-[a-z0-9_]+$/.test(n)); } catch { return; }
+  for (const n of names) {
+    const r = reapSidecar(path.join(mod, n));
+    if (r.outcome === 'emptied' || r.outcome === 'failed') log(`tmp: ${n}'s sidecar dir ${r.dir ?? '?'}: ${r.outcome}${r.why ? ` (${r.why})` : ''}`);
   }
 }
 
@@ -216,7 +252,7 @@ function run(name, argv, cwd, out, deadline, env) {
       timedOut = true;
       log(`${name}: past the night's limit, stopping its process group ${child.pid}`);
       try { process.kill(-child.pid, 'SIGTERM'); } catch { /* gone */ }
-      setTimeout(() => { try { process.kill(-child.pid, 'SIGKILL'); } catch { /* gone */ } }, 30_000);
+      setTimeout(() => { try { process.kill(-child.pid, 'SIGKILL'); } catch { /* gone */ } }, STOP_GRACE_MS);
     }, Math.max(0, deadline - Date.now()));
     child.on('exit', (code) => {
       clearTimeout(timer);
