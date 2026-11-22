@@ -62,7 +62,8 @@ final class FakeArchitect {
 		int position;
 		String state;
 		final List<String> sites;
-		final String planId;
+		/** The plan it was realised from ({@code plan_<rid>}, or (FENCE-TESTS-4) a growth's plan). */
+		String planId;
 		/** (slice DRS) What it waits for ({@code RevisionView.waiting}), when a test gives it. */
 		String waiting;
 		/** (RVC) Its typed stop cause ({@code RevisionView.removalStopCause}); Architect makes it OTHER when waiting with none, null when not. */
@@ -230,6 +231,17 @@ final class FakeArchitect {
 	String capDetail = "lot:hall_1";
 	/** (place-words) When set, {@code realiseApproved} fails with it instead (a refusal other than BILL_CAP). */
 	RuntimeException realiseFailure;
+	/** (FENCE-TESTS-4) Every {@code Regions.realise} request (a growth's, a district's, a plain village's), as sent. */
+	final List<dev.larattalabs.architect.api.RealiseRequest> realises = new ArrayList<>();
+	/** (FENCE-TESTS-4) The plans {@code planByKey} finds, by their key; none (empty) for a key not given. */
+	final Map<String, dev.larattalabs.architect.api.RegionPlan> plansByKey = new LinkedHashMap<>();
+	/** (FENCE-TESTS-4) The region a realise from materials puts its lots' sites in, when no {@link #growthOf} is given. */
+	static final String GROWN = "rg_grown";
+	/**
+	 * (FENCE-TESTS-4) The town a growth's realise revises, when a test gives it: the realise adds a revision of the request's plan to it (PLACING, its
+	 * sites), found by the realise key and by its plan, and answers the town's id, as Architect's does.
+	 */
+	String growthOf;
 	/**
 	 * (CRASH-T) Architect's realise of a town from materials ({@code realiseApproved} with this set): applied when it is sent, as Architect's is (its
 	 * answer, per {@link #realiseAnswer}, may still be lost or held: APPLY answers, HOLD leaves it unanswered until {@link #complete}, APPLY_THEN_LOSE
@@ -367,11 +379,12 @@ final class FakeArchitect {
 				}
 				yield quote == null ? CompletableFuture.failedFuture(new ArchitectRefused(Reason.SITE_BUSY, "no quote")) : CompletableFuture.completedFuture(quote);
 			}
-			// (FENCE-TESTS-3) a growth's plan found by its key: none (the growth plan can't be read back)
+			// (FENCE-TESTS-3) a growth's plan found by its key: none (the growth plan can't be read back), unless (FENCE-TESTS-4) a test gave it
 			case "planByKey" -> {
 				call("regions.planByKey " + a[0] + " " + a[1]);
-				yield Optional.empty();
+				yield Optional.ofNullable(plansByKey.get((String) a[1]));
 			}
+			case "realise" -> realise((dev.larattalabs.architect.api.RealiseRequest) a[0]);
 			case "realiseApproved" -> realiseApproved((dev.larattalabs.architect.api.ApprovedRealise) a[0]);
 			case "realiseByKey" -> {
 				call("regions.realiseByKey " + a[1]);
@@ -466,6 +479,58 @@ final class FakeArchitect {
 				yield f;
 			}
 			default -> throw new UnsupportedOperationException("FakeArchitect: realiseApproved answered " + realiseAnswer + " is not modelled");
+		};
+	}
+
+	/**
+	 * (FENCE-TESTS-4) Architect's {@code Regions.realise} (a growth's revision, a district's or a plain village's region): recorded as sent (then
+	 * {@link #throwOn} may throw on the call). From materials ({@code Mode.CONSTRUCTION}), applied as it is sent: past its {@code maxBill} (the whole
+	 * put-down bill of its lots, item by item) it is refused ({@code BILL_CAP}), nothing written or drawn; else each lot's site takes its put-down bill
+	 * ({@link #putDown}) from {@link #ledger}. {@link #realiseFailure} refuses it instead; its answer is as {@link #realiseAnswer} says. Keyed: asked
+	 * again under a key it has, it answers that revision and draws nothing.
+	 */
+	private CompletableFuture<String> realise(dev.larattalabs.architect.api.RealiseRequest r) {
+		realises.add(r);
+		call("regions.realise " + r.planId() + " " + r.opKey());
+		if (realiseFailure != null) return CompletableFuture.failedFuture(realiseFailure);
+		// keyed: asked again under a key it has, the same revision (nothing drawn again)
+		if (r.opKey() != null && realisedByKey.containsKey(r.opKey())) return answerRealise(realisedByKey.get(r.opKey()));
+		if (r.mode() == dev.larattalabs.architect.api.Mode.CONSTRUCTION) {
+			Map<String, Integer> bill = new java.util.TreeMap<>();
+			for (String lot : r.lotEntries().keySet()) putDown.getOrDefault(lot, Map.of()).forEach((k, v) -> bill.merge(k, v, Integer::sum));
+			if (r.maxBill() != null)
+				for (var e : bill.entrySet())
+					if (e.getValue() > r.maxBill().getOrDefault(e.getKey(), 0))
+						return CompletableFuture.failedFuture(new ArchitectRefused(Reason.BILL_CAP, "the bill at put-down is past its maxBill (" + e.getKey() + ")"));
+			String into = growthOf != null ? growthOf : GROWN;
+			for (String lot : new java.util.TreeSet<>(r.lotEntries().keySet())) {
+				String sid = "s_" + lot;
+				site(sid, realiseOwner, into).state = State.BUILDING;
+				ledger.bills.put(sid, Map.copyOf(putDown.getOrDefault(lot, Map.of())));
+				if (!ledger.build(this, sid)) throw new IllegalStateException("FakeArchitect: the stockpile is short for " + lot + " (give the test more stock)");
+			}
+		}
+		String id = GROWN;
+		if (growthOf != null) {
+			Region town = regions.get(growthOf);
+			int rid = town.revisions.size() + 1;
+			town.rev(rid, town.position + 1, "PLACING", r.lotEntries().keySet().stream().sorted().map(l -> "s_" + l).toArray(String[]::new)).planId = r.planId();
+			id = growthOf;
+		}
+		if (r.opKey() != null) realisedByKey.put(r.opKey(), id);
+		return answerRealise(id);
+	}
+
+	private CompletableFuture<String> answerRealise(String id) {
+		return switch (realiseAnswer) {
+			case APPLY -> CompletableFuture.completedFuture(id);
+			case HOLD -> {
+				var f = new CompletableFuture<String>();
+				held.add(() -> f.complete(id));
+				yield f;
+			}
+			case APPLY_THEN_LOSE -> CompletableFuture.failedFuture(new TimeoutException("the answer was lost"));
+			default -> throw new UnsupportedOperationException("FakeArchitect: a realise answered " + realiseAnswer + " is not modelled");
 		};
 	}
 

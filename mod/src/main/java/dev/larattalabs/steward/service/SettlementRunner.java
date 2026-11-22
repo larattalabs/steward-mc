@@ -3168,7 +3168,14 @@ public final class SettlementRunner {
 			Steward.LOGGER.info("module {} realise {} under {}: maxBill {}", settlement.id(), vPlanId, key, cap);
 			request = request.withMaxBill(cap);
 		}
-		api.regions().realise(request).whenComplete((id, err) -> server.execute(() -> realised(id, err, session)));
+		// (FENCE-TESTS-4) a throw on the call itself is answered as a failed realise (as sendApproved's is), never left in flight
+		java.util.concurrent.CompletableFuture<String> sent;
+		try {
+			sent = api.regions().realise(request);
+		} catch (RuntimeException | LinkageError e) {
+			sent = java.util.concurrent.CompletableFuture.failedFuture(e);
+		}
+		sent.whenComplete((id, err) -> ArchitectAccess.onServer(server, () -> realised(id, err, session)));
 	}
 
 	// ----------------------------------------------------------------- module lots (slice M3, docs/MODULES.md 4.2)
@@ -3213,7 +3220,7 @@ public final class SettlementRunner {
 				return false;
 			}
 		}
-		if (growRegion != null && ArchitectApi.get().regions().get(growRegion).map(Growths::fromMaterials).orElse(false)) {
+		if (growRegion != null && ArchitectAccess.api().regions().get(growRegion).map(Growths::fromMaterials).orElse(false)) {
 			Map<String, String> entries = new TreeMap<>();
 			moduleBindings.forEach((lot, b) -> { if (moduleOrders.containsKey(lot)) entries.put(lot, b.entryId()); });
 			if (!ModulePlacement.cleared(vPlanId, entries).equals(quoteCleared)) {
@@ -3291,7 +3298,7 @@ public final class SettlementRunner {
 	 * module build, Architect has no {@code maxBill}, or there is no bound (quoteModules refuses that before a realise).
 	 */
 	private java.util.@org.jspecify.annotations.Nullable Map<String, Integer> moduleCap() {
-		return realiseCap(true, moduleBuild(), moduleOrders, ArchitectApi.get().features().contains(MAX_BILL));
+		return realiseCap(true, moduleBuild(), moduleOrders, ArchitectAccess.api().features().contains(MAX_BILL));
 	}
 
 	/**
@@ -3395,16 +3402,38 @@ public final class SettlementRunner {
 				// held, saved with the build: the approval binds to exactly this bill (the quote, a terrain item up to its allowance), also after a restart.
 				// Asked again after a put-down refusal, it is never less than what was already approved, item by item
 				JsonObject shown = refusedAtPutDown ? dev.larattalabs.steward.module.ModuleBound.atLeast(allowed, now.bound()) : allowed;
-				moduleOrders = Map.of(lot, now.holding(shown));
-				persist();
+				// (FENCE-TESTS-4, persist before mutate) a hold that isn't saved is never put to the player: rolled back, the build stops as saved
+				if (!saveOrders(Map.of(lot, now.holding(shown)))) {
+					say("Not placed: the build could not be saved with the module's bill, so nothing is consumed.");
+					feed(new Pipeline.Cancel());
+					return;
+				}
 				feed(new Pipeline.HoldBill(why + " Nothing has been taken from the stockpile. The whole bill: " + dev.larattalabs.steward.module.ModuleBound.upTo(shown, terrain.keySet(), 1000)
 					+ ". Approve to build it with this bill (it becomes the bound: " + dev.larattalabs.steward.module.ModuleBound.CRASH_EXCEPTION + "), or cancel."));
 				return;
 			}
-			if (now.held() != null) { moduleOrders = Map.of(lot, now.holding(null)); persist(); }
+			// (FENCE-TESTS-4) a dropped hold that isn't saved goes no further: rolled back, the build stops as saved
+			if (now.held() != null && !saveOrders(Map.of(lot, now.holding(null)))) {
+				say("Not placed: the build could not be saved with the module's bill, so nothing is consumed.");
+				feed(new Pipeline.Cancel());
+				return;
+			}
 			quoteCleared = key;
 			realiseVillage();
 		}));
+	}
+
+	/**
+	 * (FENCE-TESTS-4) The module orders set to {@code next} and saved; a save that fails puts them back as they were, in the runner and in the shared
+	 * store (another build's save never writes the rejected ones). Whether it landed.
+	 */
+	private boolean saveOrders(Map<String, dev.larattalabs.steward.module.ModuleOrder> next) {
+		var before = moduleOrders;
+		moduleOrders = next;
+		if (persist()) return true;
+		moduleOrders = before;
+		if (alive() && settlement != null && state != null && plan != null) cache();
+		return false;
 	}
 
 	/**
@@ -3701,21 +3730,21 @@ public final class SettlementRunner {
 
 	/** Whether this world builds regions from materials (Architect's RegionSurvival.on: the survival toggle on, the default game type not creative). */
 	private boolean regionMaterials() {
-		return dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false) && server.getDefaultGameType() != net.minecraft.world.level.GameType.CREATIVE;
+		return ArchitectAccess.regionMaterials(server);
 	}
 
 	/** (slice A2) Why a growth may not be realised now, or null: the mode gate again, and a town built from materials keeps its stockpile. */
 	private @org.jspecify.annotations.Nullable String growthRealiseRefusal() {
-		var town = growRegion == null ? java.util.Optional.<dev.larattalabs.architect.api.RegionView>empty() : ArchitectApi.get().regions().get(growRegion);
+		var town = growRegion == null ? java.util.Optional.<dev.larattalabs.architect.api.RegionView>empty() : ArchitectAccess.api().regions().get(growRegion);
 		if (town.isEmpty()) return null;
 		var v = town.get();
-		boolean world = dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false) && server.getDefaultGameType() != net.minecraft.world.level.GameType.CREATIVE;
+		boolean world = regionMaterials();
 		boolean built = v.build() != null && v.build().built();
 		if (Growths.fromMaterials(v) == world && Growths.fromMaterials(v) && !built)
 			return growingName() + " is being built from the stockpile again (an update or another change); it can grow once it's built. Start it again then.";
 		String no = Growths.modeRefusal(districtId == null ? settlement.name() : growingName(), Growths.fromMaterials(v), world, built, v.build() == null ? 0 : v.build().percent());
 		if (no != null) return no + " Start it again.";
-		if (Growths.fromMaterials(v) && Stockpiles.of(server, Settlements.store().get(settlement.id()).orElse(settlement)).isEmpty())
+		if (Growths.fromMaterials(v) && !ArchitectAccess.hasStockpile(server, Settlements.store().get(settlement.id()).orElse(settlement)))
 			return "the town's stockpile is gone, and a town built from materials grows from it. Start it again: a new one is made by the founding stone.";
 		return null;
 	}
@@ -4193,7 +4222,7 @@ public final class SettlementRunner {
 		try {
 			String sha = dev.larattalabs.steward.gateway.PPlan.artifactOf(vPlanId);
 			if (sha != null) pin(sha);
-			else ArchitectApi.get().regions().planByKey(settlement.owner(), opKey(growth() && growKey != null ? growKey : "vplan"));
+			else ArchitectAccess.api().regions().planByKey(settlement.owner(), opKey(growth() && growKey != null ? growKey : "vplan"));
 			Steward.LOGGER.info("resume {}: plan {} used again (kept from Architect's sweep)", settlement.id(), vPlanId);
 		} catch (RuntimeException | LinkageError e) {
 			Steward.LOGGER.warn("could not use the plan {} of {} again", vPlanId, settlement.id(), e);
@@ -4223,11 +4252,11 @@ public final class SettlementRunner {
 			if (billCapped(err) && moduleBuild() && state.phase() == Pipeline.Phase.PLACING) {
 				Steward.LOGGER.info("module {} realise {} refused at put-down: {}", settlement.id(), vPlanId, message(err));
 				// (QD-2) saved before the quote is asked for: a restart puts the next quote to the player too, never realises it on its own
-				moduleOrders = refusedAtPutDown(moduleOrders);
 				quoteCleared = null;
 				// (pin-073 batch review, P2) the refusal not saved: a restart would find the build placing as approved and could realise it on its own,
 				// so it is neither quoted again nor realised here; the build stops (nothing was written or taken), said
-				if (!persist()) {
+				// (FENCE-TESTS-4) and the unsaved refusal is rolled back, in the runner and the shared store: the build stops as saved
+				if (!saveOrders(refusedAtPutDown(moduleOrders))) {
 					say("Not placed: the materials needed went past " + dev.larattalabs.steward.module.ModuleBound.limitOf(moduleOrders.values())
 						+ ", and that could not be saved, so I won't ask again or build it. Nothing was taken from the stockpile; ask for it again.");
 					feed(new Pipeline.Cancel());
@@ -4320,7 +4349,7 @@ public final class SettlementRunner {
 	private void adoptGrowth(String regionId) {
 		// taken already (a late answer after the lookup found it): not twice
 		if (regionId.equals(vRegionId)) return;
-		var rv = ArchitectApi.get().regions().get(regionId).flatMap(v -> Growths.byPlan(v, vPlanId));
+		var rv = ArchitectAccess.api().regions().get(regionId).flatMap(v -> Growths.byPlan(v, vPlanId));
 		if (rv.isPresent()) {
 			growRid = rv.get().rid();
 			growPosition = rv.get().position();
@@ -4335,7 +4364,7 @@ public final class SettlementRunner {
 
 	/** A growth realised under its keys: the town region, when the revision realised from this build's plan is in it. */
 	private java.util.Optional<String> foundGrowth() {
-		var regions = ArchitectApi.get().regions();
+		var regions = ArchitectAccess.api().regions();
 		return regions.realiseByKey(settlement.owner(), opKey("vgrowrealise"))
 			.or(() -> regions.realiseByKey(settlement.owner(), opKey("vgrowrealise3")))
 			.or(() -> growRegion == null ? java.util.Optional.empty() : regions.get(growRegion))
@@ -4686,7 +4715,7 @@ public final class SettlementRunner {
 	 * the revision has ended, its own sites are logged under {@code revision:<region>:<rid>} and the build ends. One that placed nothing is taken up.
 	 */
 	private void watchGrowth() {
-		var regions = ArchitectApi.get().regions();
+		var regions = ArchitectAccess.api().regions();
 		var v = regions.get(vRegionId);
 		if (v.isEmpty()) return;
 		var rv = Growths.revision(v.get(), growRid).or(() -> Growths.byPlan(v.get(), vPlanId));

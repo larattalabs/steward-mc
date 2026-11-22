@@ -15,11 +15,14 @@ import org.jspecify.annotations.Nullable;
  * Production never calls {@link #useForTest}; with nothing supplied this is exactly {@code ArchitectApi.get()} and {@code server.execute}.
  * (CRASH-T2) Also the realise's player lookup ({@link #player}): {@code server.getPlayerList().getPlayer(id)} unless a test supplied its own
  * ({@link #usePlayersForTest}), so a test with no server reaches the realise through the runner's own steps.
+ * (FENCE-TESTS-4) And the world's mode and the town's stockpile as a growth's realise reads them ({@link #regionMaterials}, {@link #hasStockpile}):
+ * {@code WorldMode} and the server's default game type, and {@link Stockpiles#of}, unless a test supplied its own world ({@link #useWorldForTest}).
  */
 final class ArchitectAccess {
 	private static volatile @Nullable ArchitectApi testApi;
 	private static volatile @Nullable Executor testServer;
 	private static volatile @Nullable Function<UUID, @Nullable ServerPlayer> testPlayers;
+	private static volatile @Nullable Boolean testRegionMaterials, testStockpile;
 
 	private ArchitectAccess() {
 	}
@@ -43,6 +46,30 @@ final class ArchitectAccess {
 		return t != null ? t.apply(id) : server.getPlayerList().getPlayer(id);
 	}
 
+	/**
+	 * Whether this world builds regions from materials (Architect's RegionSurvival.on: the survival toggle on, the default game type not creative),
+	 * unless a test supplied its own world (then {@code server} is never read).
+	 */
+	static boolean regionMaterials(MinecraftServer server) {
+		Boolean t = testRegionMaterials;
+		if (t != null) return t;
+		return dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false)
+			&& server.getDefaultGameType() != net.minecraft.world.level.GameType.CREATIVE;
+	}
+
+	/** Whether the settlement has a stockpile ({@link Stockpiles#of}), unless a test supplied its own world (then {@code server} is never read). */
+	static boolean hasStockpile(MinecraftServer server, dev.larattalabs.steward.model.Settlement s) {
+		Boolean t = testStockpile;
+		if (t != null) return t;
+		return Stockpiles.of(server, s).isPresent();
+	}
+
+	/** Tests only: a world that builds regions from materials or not, and a settlement stockpile or none. Undone by {@link #reset()}. */
+	static void useWorldForTest(boolean regionMaterials, boolean stockpile) {
+		testRegionMaterials = regionMaterials;
+		testStockpile = stockpile;
+	}
+
 	/** Tests only: {@code players} in place of the server's player list. Undone by {@link #reset()}. */
 	static void usePlayersForTest(Function<UUID, @Nullable ServerPlayer> players) {
 		testPlayers = players;
@@ -54,10 +81,12 @@ final class ArchitectAccess {
 		testServer = server;
 	}
 
-	/** Tests only: back to Architect's API, the server's executor and its player list. */
+	/** Tests only: back to Architect's API, the server's executor, its player list and its world. */
 	static void reset() {
 		testApi = null;
 		testServer = null;
 		testPlayers = null;
+		testRegionMaterials = null;
+		testStockpile = null;
 	}
 }

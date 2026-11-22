@@ -263,6 +263,8 @@ class ModuleGrowthOrderTest {
 			assertEquals(0, a.count("regions.planByKey"), fail + ": asked again on an unsaved refusal: " + a.calls);
 			assertEquals(0, a.count("regions.quote"), fail + ": quoted again: " + a.calls);
 			assertNotEquals(Pipeline.Phase.PLACING, phase(), fail + ": still placing");
+			// (FENCE-TESTS-4) the unsaved refusal rolled back: the runner stops as it was saved
+			assertFalse(order().refusedAtPutDown(), fail + ": the unsaved refusal kept in the runner");
 			SettlementRunner.clearForTest();
 		}
 	}
