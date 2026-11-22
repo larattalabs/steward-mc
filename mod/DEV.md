@@ -319,6 +319,14 @@ Every worktree and `--clients` run dir has its own, so by 11-16 sixteen of them 
 - **Fallback dirs don't pile up** (E2E-DISK-4): at its end a run removes the `sidecar-<hash>-XXXXXX` it owns (not made again empty) and points
   the link back at the game dir's `sidecar-<hash>`, where it pointed before. The sweep also removes empty unmarked fallbacks untouched for 10 min
   (by rmdir, so one written into meanwhile stays) and a dead owner's kept fallback holding only its marker.
+- **The sweep's bounds at a glance** (E2E-DISK-4/-5, E2E-TIDY-3). An unkept dir goes as soon as its owner is gone. A kept dir
+  (`STEWARD_KEEP_TMP=1`) whose owner is gone goes after `STEWARD_KEEP_TMP_HOURS` untouched (24), or oldest first while kept dirs total
+  more than `STEWARD_KEEP_TMP_CAP_GIB` (8); 0 turns either off, and a value that isn't a number >= 0 falls back to the default with a
+  warning. An empty unmarked fallback goes after 10 min. When the game dir's `sidecar-<hash>` isn't a directory (a file, a symlink;
+  E2E-DISK-5) it is never touched: the run's fallback is made again empty at its end so the link doesn't dangle, and since E2E-TIDY-3 it
+  carries `.steward-link` naming that link. The sweep never removes a dir whose recorded link still points at it (realpath, compared
+  case-insensitively; an unreadable record counts as holding), so a plain `runClient` keeps a target. Once the link points elsewhere or
+  is gone, the dir goes as an empty fallback. `repairSidecarData` records the link the same way when it makes a wiped fallback target again.
 - **Module answer files** (E2E-DISK-4): `tools/module-measure*.mjs` and `tools/module-catalog.mjs` claim each `steward-modules/<label>.json`
   exclusively before the request (`claimAnswerFile`, as e2e does), under a pid-and-start-time tag, and drop the placeholder on a failure.
 

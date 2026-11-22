@@ -7,8 +7,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { sweepStale, markOwner, readOwner, removeOwned, own, ownedDirs, isHeld, ownerGone, processStart, dirBytes, keptBounds, OWNER_FILE, PROCESS_START_MS } from '../tools/lib/tmp-owner.mjs';
-import { ramSidecarData } from '../tools/lib/ram-tmp.mjs';
+import { sweepStale, markOwner, readOwner, removeOwned, own, ownedDirs, isHeld, ownerGone, processStart, dirBytes, keptBounds, OWNER_FILE, LINK_FILE, PROCESS_START_MS } from '../tools/lib/tmp-owner.mjs';
+import { ramSidecarData, repairSidecarData } from '../tools/lib/ram-tmp.mjs';
 
 const LIB = pathToFileURL(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'tools', 'lib')).href;
 const tmp = (p) => fs.mkdtempSync(path.join(os.tmpdir(), p));
@@ -490,7 +490,8 @@ for (const kind of ['a plain file', 'a dangling symlink', 'a symlink to a dir'])
     assert.ok(fs.existsSync(link), 'the link leads to a directory');
     assert.ok(fs.statSync(link).isDirectory());
     assert.equal(fs.readlinkSync(link), r.dir, 'it stays on the fallback, made again');
-    assert.deepEqual(fs.readdirSync(r.dir), [], 'the run\'s data is gone, no marker left');
+    // (E2E-TIDY-3) no marker and none of the run's data: only the link's record, so the sweep leaves it while the link points at it
+    assert.deepEqual(fs.readdirSync(r.dir), [LINK_FILE], 'the run\'s data is gone, no marker left');
     assert.equal(kind === 'a plain file' ? fs.readFileSync(primary, 'utf8') : fs.readlinkSync(primary), before, 'the non-dir untouched');
     if (kind === 'a symlink to a dir') assert.deepEqual(fs.readdirSync(elsewhere), ['theirs']);
     // the next fresh run takes a fallback again and leaves the made-again one to the empty-fallback sweep
@@ -500,3 +501,51 @@ for (const kind of ['a plain file', 'a dangling symlink', 'a symlink to a dir'])
     assert.ok(fs.statSync(link).isDirectory());
   });
 }
+
+// ------------------------------------------------------------------ E2E-TIDY-3: the sweep never deletes a live link's target
+
+test('(E2E-TIDY-3) a fallback made again empty for a live link (sidecar-<hash> not a dir) is never swept; once the link has moved on it goes', () => {
+  const game = tmp('tmpown-game-'), root = tmp('tmpown-ram-');
+  const link = path.join(game, 'architect', 'sidecar-data');
+  const steward = path.join(root, 'steward');
+  const primary = ramSidecarData(game, {}, root).dir;
+  fs.rmdirSync(primary);
+  fs.writeFileSync(primary, 'not a dir');
+  const r = ramSidecarData(game, {}, root, { fresh: true, own: true });
+  assert.equal(removeOwned(r.dir, { link }), 'removed');
+  assert.equal(fs.readlinkSync(link), r.dir);
+  // past the empty-fallback bound (10 min): a plain runClient on the game dir still needs it
+  backdate(r.dir, 1);
+  const s1 = sweepStale({ root: steward, starts: DEAD, alive: () => false });
+  assert.ok(!s1.removed.includes(path.basename(r.dir)), `swept: ${JSON.stringify(s1.swept)}`);
+  assert.ok(fs.statSync(link).isDirectory(), 'the link leads to a directory');
+  // the link points elsewhere now (a later run's fallback): the made-again dir is nobody's, and goes
+  const other = fs.mkdtempSync(`${primary}-`);
+  fs.unlinkSync(link);
+  fs.symlinkSync(other, link);
+  backdate(r.dir, 1);
+  const s2 = sweepStale({ root: steward, starts: DEAD, alive: () => false });
+  assert.ok(s2.removed.includes(path.basename(r.dir)), `kept: ${JSON.stringify(s2)}`);
+  assert.equal(fs.existsSync(r.dir), false);
+  assert.ok(fs.existsSync(other));
+});
+
+test('(E2E-TIDY-3) a fallback target repairSidecarData makes again (a reboot wiped it) is never swept while the link points at it', () => {
+  const game = tmp('tmpown-game-'), root = tmp('tmpown-ram-');
+  const link = path.join(game, 'architect', 'sidecar-data');
+  const steward = path.join(root, 'steward');
+  fs.mkdirSync(steward, { recursive: true });
+  fs.mkdirSync(path.dirname(link), { recursive: true });
+  const fb = path.join(steward, 'sidecar-1a2b-Ab12Cd');
+  fs.symlinkSync(fb, link); // dangling: the RAM disk was wiped
+  assert.equal(repairSidecarData(game, {}, root), 'relinked');
+  backdate(fb, 1);
+  sweepStale({ root: steward, starts: DEAD, alive: () => false });
+  assert.ok(fs.existsSync(fb), 'the link\'s live target stays');
+  assert.ok(fs.statSync(link).isDirectory());
+  // the link gone (the game dir removed): the dir goes
+  fs.unlinkSync(link);
+  backdate(fb, 1);
+  const s = sweepStale({ root: steward, starts: DEAD, alive: () => false });
+  assert.deepEqual(s.removed, ['sidecar-1a2b-Ab12Cd']);
+});
