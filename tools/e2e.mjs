@@ -17,6 +17,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { regionUntilBy } from './lib/region-wait.mjs';
 import { pickFlows, groupFlows, packFlows, codeBlocks, closureOf, fixtureRefs, hashPaths, hashText, hashLib, skipDecision, applySkips, isStrict, mergeFlowSeconds, tierSkips } from './lib/e2e-flows.mjs';
 import { useRamTmp, ramSidecarData, RAM_TMP } from './lib/ram-tmp.mjs';
 import { sweepStale, cleanupOwned, keptBounds } from './lib/tmp-owner.mjs';
@@ -5809,17 +5810,9 @@ async function revisionUntil(region, rid, states, ms = 300_000) {
   return rev;
 }
 
-/** A region's state, polled until it is one of {@code states} (or the time runs out). */
+/** A region's state, polled until it is one of {@code states}; past the bound it says timedOut (tools/lib/region-wait.mjs). */
 async function regionUntil(region, states, ms = 300_000) {
-  let v = null;
-  for (const end = Date.now() + ms; Date.now() < end;) {
-    v = await dev.request('dev.region.state', { region }).catch(() => null);
-    // a removed region is no longer in the state reader: gone is REMOVED
-    const st = v?.view?.state ?? v?.state ?? (states.includes('REMOVED') && (!v || v.ok === false || v.error) ? 'REMOVED' : undefined);
-    if (states.includes(st)) return { ...(v ?? {}), state: st };
-    await sleep(2000);
-  }
-  return v;
+  return regionUntilBy(() => dev.request('dev.region.state', { region }), states, ms);
 }
 
 /**
@@ -8441,6 +8434,8 @@ async function moduleSurvivalFlow() {
     // what it needs every 30 s. Bare farmland waiting for its crop dries back to dirt and is laid again, past the quote, and the undo doesn't refund the
     // re-laid cells: paid against refunded per item and the wait, never a failure, until Architect answers (S-M5-10, Architect's farmland re-lay)
     const wl = `${label} waiting (report, S-M5-10, Architect's farmland re-lay)`;
+    // (E2E-SPEED, docs/SPEED-CUTS.md) report only, so it never fails a batch: about 5 min, run with --full or in the nightly
+    if (!fullTier && process.env.E2E_NIGHTLY !== '1') { console.log(`skip ${wl}: report only, --full runs it`); return; }
     await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ}`);
     await cmd('/give @p minecraft:carrot 16');
     await cmd(`/steward dev sim_answer talk ${JSON.stringify({ ...ask, module: { id: MODULE, params: { crop: 'carrots' } } })}`);
@@ -10490,7 +10485,7 @@ async function lead() {
       }
     }
     fs.mkdirSync(c.out, { recursive: true });
-    const args = [fileURLToPath(import.meta.url), mode, '--flows', c.flows.join(','), ...(keepWorld ? ['--keep-world'] : [])];
+    const args = [fileURLToPath(import.meta.url), mode, '--flows', c.flows.join(','), ...(keepWorld ? ['--keep-world'] : []), ...(fullTier ? ['--full'] : [])];
     const env = { ...process.env, E2E_CLIENT: `c${c.k}`, E2E_LANE_OWNER: JSON.stringify(runOwner), E2E_GAME_DIR: at.gameDir, E2E_OUT: c.out, STEWARD_PORT: String(at.sidecarPort), STEWARD_DEV_PORT: String(at.devPort),
       ...(s.ticket ? { E2E_SLOT_TICKET: s.ticket, E2E_SLOT: String(s.slot ?? '') } : {}) };
     const child = spawn(process.execPath, args, { cwd: ROOT, env, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -10579,7 +10574,7 @@ try {
       await flow('plan-build', 'plan', () => planBuildFlow());
       await flow('street-hint', 'plan grid wall nofit', () => streetHintFlow());
       await flow('compose-words', 'plan card', () => composeWordsFlow());
-      await flow('wall-offer', 'wall plan', () => wallOfferFlow(), [], { full: 'E2E-SPEED: 7.5 min; walls stay covered by survival, quarter and the mech flows' });
+      await flow('wall-offer', 'wall plan', () => wallOfferFlow());
       await flow('farm-pond', 'water', () => farmPondFlow());
       await flow('ditch', 'water', () => ditchFlow());
       await flow('irrigation', 'water farm', () => irrigationFlow());
@@ -10625,9 +10620,9 @@ try {
       await flow('composed-modules-restart', 'composed module farm survival stockpile bill restart', () => composedModulesRestartFlow());
       await flow('copper-lots', 'plan material', () => copperLotsFlow());
       await flow('discard', 'plan undo', () => discardFlow());
-      await flow('beside', 'plan', () => besideFlow(), [], { full: 'E2E-SPEED: 5 min; Architect D3 join, districts stay covered by district-* flows' });
+      await flow('beside', 'plan', () => besideFlow());
       await flow('revision', 'plan version revert', () => revisionFlow());
-      await flow('district-region', 'district region', () => districtRegionFlow(), [], { full: 'E2E-SPEED: 2 min; districts stay covered by district-growth, survival-district, plan-district' });
+      await flow('district-region', 'district region', () => districtRegionFlow());
       await flow('district-growth', 'district districts growth region undo restart', () => districtGrowthFlow());
       await flow('survival-district', 'survival districts district growth stockpile bill refund undo restart', () => survivalDistrictFlow());
       await flow('plan-district', 'plan districts district survival stockpile bill refund undo', () => planDistrictFlow());
@@ -10635,7 +10630,7 @@ try {
       await flow('survival-quarter', 'quarter survival district stockpile bill refund undo restart', () => survivalQuarterFlow());
       await flow('quarter-growth', 'quarter district districts growth undo restart orphan', () => quarterGrowthFlow());
       await flow('district-module', 'district districts module farm growth undo', () => districtModuleFlow());
-      await flow('wall-lots', 'wall gatehouse gate', () => wallLotsFlow(), [], { full: 'E2E-SPEED: 12 min; the K3 wall-lot repair loop (Architect-side), gatehouses stay covered by gate-mech-lots' });
+      await flow('wall-lots', 'wall gatehouse gate', () => wallLotsFlow());
       await flow('gate-mech', 'gate wall mechanism portcullis undo', () => gateMechFlow());
       await flow('gate-mech-lots', 'gate wall mechanism portcullis undo', () => gateMechFlow('lots'));
       await flow('gate-mech-swing', 'gate wall mechanism swing undo', () => gateMechFlow('swing'));

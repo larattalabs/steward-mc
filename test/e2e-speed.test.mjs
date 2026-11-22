@@ -49,3 +49,29 @@ test('a full-tier flow is skipped by default, kept with --full, in the nightly, 
   assert.deepEqual(tierSkips(LIST, pickFlows(LIST, ['b']), { only: ['b'] }), []);
   assert.match(tierSkips(LIST, why)[0].why, /--full or --only b/);
 });
+
+import { regionStateOf, regionUntilBy } from '../tools/lib/region-wait.mjs';
+
+test('a region missing from the state reader reads as REMOVED at once', () => {
+  assert.equal(regionStateOf({ ok: true, missing: true }, ['REMOVED']), 'REMOVED');
+  assert.equal(regionStateOf({ ok: true, view: { state: 'REMOVING' } }, ['REMOVED']), 'REMOVING');
+  assert.equal(regionStateOf({ ok: false, error: 'x' }, ['REMOVED']), 'REMOVED');
+  assert.equal(regionStateOf({ ok: false, error: 'x' }, ['PLACED']), undefined);
+  assert.equal(regionStateOf({ ok: true }, ['REMOVED']), undefined);
+});
+
+test('the wait ends on the first matching answer and fails loudly past its bound', async () => {
+  let t = 0;
+  const clock = { now: () => t, sleep: async (ms) => { t += ms; } };
+  const seq = [{ ok: true, view: { state: 'REMOVING' } }, { ok: true, missing: true }];
+  let i = 0;
+  const done = await regionUntilBy(async () => seq[Math.min(i++, 1)], ['REMOVED'], 600_000, clock);
+  assert.equal(done.state, 'REMOVED');
+  assert.equal(t, 2000);
+  t = 0;
+  const stuck = await regionUntilBy(async () => ({ ok: true, view: { state: 'REMOVING' } }), ['REMOVED'], 10_000, clock);
+  assert.deepEqual([stuck.state, stuck.timedOut, stuck.view.state], ['REMOVING', true, 'REMOVING']);
+  t = 0;
+  const blank = await regionUntilBy(async () => ({ ok: true }), ['REMOVED'], 10_000, clock);
+  assert.deepEqual([blank.state, blank.timedOut], ['TIMEOUT', true]);
+});
