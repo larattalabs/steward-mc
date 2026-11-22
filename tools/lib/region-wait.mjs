@@ -1,4 +1,5 @@
 // (E2E-SPEED) reading dev.region.state while waiting on a region (tools/e2e.mjs regionUntil), kept apart for its unit tests.
+import fs from 'node:fs';
 
 /**
  * The state a dev.region.state answer stands for. A removed region leaves Architect's live table and is answered {ok: true, missing: true}
@@ -26,4 +27,15 @@ export async function regionUntilBy(read, states, ms, { everyMs = 2000, sleep = 
     await sleep(everyMs);
   }
   return { ...(v ?? {}), state: st ?? 'TIMEOUT', timedOut: true };
+}
+
+/**
+ * A log file after byte `from` (logSize's count), as text. A file shorter than `from` was rolled over since (the game's daily rollover at
+ * midnight, or a restart), so all of it is newer: before E2E-SPEED the slice past its end read as nothing (run 2's supplied-growth mode change,
+ * at 00:00), and a char slice by a byte offset skipped a little after each non-ASCII char. No file reads as ''.
+ */
+export function readSince(file, from) {
+  let buf;
+  try { buf = fs.readFileSync(file); } catch { return ''; }
+  return (buf.length < from ? buf : buf.subarray(from)).toString('utf8');
 }

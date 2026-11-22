@@ -75,3 +75,24 @@ test('the wait ends on the first matching answer and fails loudly past its bound
   const blank = await regionUntilBy(async () => ({ ok: true }), ['REMOVED'], 10_000, clock);
   assert.deepEqual([blank.state, blank.timedOut], ['TIMEOUT', true]);
 });
+
+import { readSince } from '../tools/lib/region-wait.mjs';
+
+test('the log after a byte offset: exact past non-ASCII, whole after a rollover, empty when absent', async () => {
+  const fs = await import('node:fs');
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'e2e-speed-'));
+  const f = path.join(dir, 'latest.log');
+  try {
+    fs.writeFileSync(f, 'pill 3 jobs · E2E\n');
+    const from = fs.statSync(f).size;
+    fs.appendFileSync(f, 'Not placed: x\n');
+    assert.equal(readSince(f, from), 'Not placed: x\n');
+    fs.writeFileSync(f, 'new day\n');
+    assert.equal(readSince(f, from), 'new day\n');
+    assert.equal(readSince(path.join(dir, 'none.log'), 0), '');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

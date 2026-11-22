@@ -17,7 +17,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { regionUntilBy } from './lib/region-wait.mjs';
+import { regionUntilBy, readSince } from './lib/region-wait.mjs';
 import { pickFlows, groupFlows, packFlows, codeBlocks, closureOf, fixtureRefs, hashPaths, hashText, hashLib, skipDecision, applySkips, isStrict, mergeFlowSeconds, tierSkips } from './lib/e2e-flows.mjs';
 import { useRamTmp, ramSidecarData, RAM_TMP } from './lib/ram-tmp.mjs';
 import { sweepStale, cleanupOwned, keptBounds } from './lib/tmp-owner.mjs';
@@ -279,7 +279,8 @@ async function stopClient() {
 }
 
 const logSize = () => (fs.existsSync(LOG) ? fs.statSync(LOG).size : 0);
-const logSince = (from) => (fs.existsSync(LOG) ? fs.readFileSync(LOG, 'utf8').slice(from) : '');
+// (E2E-SPEED) the game log after byte `from`, whole when it rolled over since (tools/lib/region-wait.mjs readSince)
+const logSince = (from) => readSince(LOG, from);
 
 /** Closes whatever screen is open (a focused text box takes the first Escape). */
 async function closeScreens() {
