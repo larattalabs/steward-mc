@@ -500,8 +500,21 @@ public final class Composer {
 		keep(server, player, now, plan, composed, c, composed.outcome().leftOut());
 	}
 
+	/**
+	 * (B092-LEFT-2, dev only) How many times {@link #check} was entered for each settlement since the game started, counted before anything it
+	 * does (a check that fails early counts): the e2e check's positive signal that a stale stop checked nothing ({@code /steward dev checks}).
+	 * Counted in a development environment only; a released game keeps nothing.
+	 */
+	private static final Map<String, Integer> DEV_CHECKS = new java.util.concurrent.ConcurrentHashMap<>();
+
+	/** (B092-LEFT-2, dev only) The checks entered for settlement {@code id} since the game started (0 outside a development environment). */
+	public static int devChecks(String id) {
+		return DEV_CHECKS.getOrDefault(id, 0);
+	}
+
 	/** Architect's check of {@code plan} over {@code s}'s claim, the stone and (when in the claim) the player as anchors. */
 	static java.util.concurrent.CompletableFuture<PlanCheck> check(MinecraftServer server, Settlement s, JsonObject plan, UUID player) {
+		if (dev.larattalabs.steward.module.ModuleDev.allowed()) DEV_CHECKS.merge(s.id(), 1, Integer::sum);
 		var level = Districts.level(server, s.claim().dimension());
 		if (level == null) return java.util.concurrent.CompletableFuture.failedFuture(new RefusalWords.Own("the settlement's dimension is not loaded"));
 		int cx = s.claim().centerX(), cz = s.claim().centerZ(), r = s.claim().radius();
