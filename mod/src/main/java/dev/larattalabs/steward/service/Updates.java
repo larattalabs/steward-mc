@@ -133,6 +133,11 @@ public final class Updates {
 			DeltaVerdict v = sites.checkDelta(UpdatePlanner.request(o.siteId(), o.headVersion(), UpdatePlanner.editsFor(s.permission()), s.owner()));
 			UpdatePlanner.Plan plan = UpdatePlanner.plan(lot, v, s.permission(), landFor(s, v), s.lands().protect());
 			if (follow != null) plan = FollowPlanner.asFollow(plan, sourceLot(buildings, follow), s.permission());
+			// (T4RD-S, GPT P2-4) a preview refused as busy: asked, in the steward's words (never the refusal's text)
+			var previewBusy = BusyUpdates.busyOf(v.refusals());
+			if (previewBusy != null && plan.action() != UpdatePlanner.Action.NOTHING) {
+				plan = new UpdatePlanner.Plan(UpdatePlanner.Action.ASK, lot + " waits: " + RemovalStops.busyReason(previewBusy) + ".", plan.playerEdits());
+			}
 			// (T4RD-S) refused as busy: waits (asked, never applied by itself) until the way clears; never a failure
 			if (plan.action() == UpdatePlanner.Action.APPLY && BUSY.waiting(key)) {
 				plan = new UpdatePlanner.Plan(UpdatePlanner.Action.ASK, lot + " waits: " + BUSY.why(key) + ".", plan.playerEdits());
@@ -373,7 +378,13 @@ public final class Updates {
 				return refusedBusy(err) ? new SiteBusy.Held(SiteBusy.Kind.OTHER, null, null, false) : null;
 			}
 			if (r == null || r.applied()) return null;
-			for (var x : r.refusals()) {
+			return busyOf(r.refusals());
+		}
+
+		/** The busy among refusals ({@code SITE_BUSY}, typed by its detail token, else untyped), or null. Pure. */
+		static SiteBusy.@org.jspecify.annotations.Nullable Held busyOf(@org.jspecify.annotations.Nullable List<dev.larattalabs.architect.api.Refusal> refusals) {
+			if (refusals == null) return null;
+			for (var x : refusals) {
 				if (x == null || x.reason() != dev.larattalabs.architect.api.Reason.SITE_BUSY) continue;
 				var h = SiteBusy.of(x);
 				// an untyped SITE_BUSY (the async path drops the detail; the build under it still being worked on): another change, tried again soon
@@ -414,12 +425,12 @@ public final class Updates {
 		}
 
 		/**
-		 * A removal finished: every version waiting behind that removal ({@link SiteBusy.Held#finishedBy}) may be applied again. A wait whose blocker
-		 * Steward can't name (a detail token or an untyped busy: the delta paths carry no blocker kind) is released by any removal's end, as it may be
-		 * what it waited for; a typed wait for another change never is. Whether any was.
+		 * A removal finished: every version waiting behind that removal ({@link SiteBusy.Held#finishedBy}) may be applied again. Only matching evidence
+		 * releases a wait (GPT P1-3): one whose blocker Steward can't name (a detail token or an untyped busy: the delta paths carry no blocker kind) or a
+		 * wait for another change is released by its bounded timer alone, never by an unrelated removal's end. Whether any was.
 		 */
 		boolean releaseWaits(dev.larattalabs.architect.api.@org.jspecify.annotations.Nullable RemovalFinished f) {
-			return waiting.values().removeIf(w -> w.held().typed() != null ? w.held().finishedBy(f) : w.held().waits() || w.held().busy() == null);
+			return waiting.values().removeIf(w -> w.held().finishedBy(f));
 		}
 
 		/** The player asked for it: tried now, counted and said from the start. */

@@ -267,7 +267,11 @@ public final class Undo {
 	static void groupUndo(@org.jspecify.annotations.Nullable MinecraftServer server, dev.larattalabs.architect.api.Sites sites, Settlement s, Settlement.LogEntry entry,
 		String group, List<String> standing, java.util.Map<String, Integer> now, RemoveOptions as, Consumer<String> say) {
 		boolean txn = txnRemovals();
-		if (txn) intent(s, entryIntentNote(entry), say);
+		if (txn && !intent(s, entryIntentNote(entry))) {
+			UNDOING.remove(s.id());
+			say.accept(notStarted(s.id()));
+			return;
+		}
 		int session = Session.current();
 		asking(server, () -> sites.removeGroup(group, as)).whenComplete((r, err) -> {
 			// the world closing mid-undo is not its outcome: what Architect finished is read again after the restart (the undo can be run again)
@@ -334,7 +338,11 @@ public final class Undo {
 	static void chainUndo(@org.jspecify.annotations.Nullable MinecraftServer server, dev.larattalabs.architect.api.Sites sites, Settlement s, Settlement.LogEntry entry,
 		List<String> ids, boolean adopted, java.util.Map<String, Integer> now, RemoveOptions as, Consumer<String> say) {
 		boolean txn = txnRemovals();
-		if (txn) intent(s, entryIntentNote(entry), say);
+		if (txn && !intent(s, entryIntentNote(entry))) {
+			UNDOING.remove(s.id());
+			say.accept(notStarted(s.id()));
+			return;
+		}
 		List<String> removed = new ArrayList<>();
 		String[] heldSite = new String[1];
 		SiteBusy.Held[] heldHow = new SiteBusy.Held[1];
@@ -408,11 +416,19 @@ public final class Undo {
 		});
 	}
 
-	/** Saves an undo's intent note; a failed save is said (the undo goes on: a restart mid-removal then needs the undo again). */
-	private static void intent(Settlement s, Settlement.LogEntry note, Consumer<String> say) {
-		if (Settlements.log(s.id(), note).ok()) return;
-		Steward.LOGGER.warn("{}: the undo ({}) left no note (a restart mid-removal needs /steward undo again)", s.id(), note.siteGroup());
-		say.accept("If the world closes before this finishes, use /steward undo " + s.id() + " again.");
+	/**
+	 * Saves an undo's intent note before Architect is asked (T4RD-S, GPT P1-2: persist before mutate). False when it could not be saved: the caller asks
+	 * nothing, releases its mark and says so (nothing was taken down), so no removal ever runs without the record the sweep finishes it from.
+	 */
+	private static boolean intent(Settlement s, Settlement.LogEntry note) {
+		if (Settlements.log(s.id(), note).ok()) return true;
+		Steward.LOGGER.warn("{}: the undo ({}) left no note: not started", s.id(), note.siteGroup());
+		return false;
+	}
+
+	/** (T4RD-S) What an undo whose intent could not be saved says: nothing was taken down. Pure. */
+	static String notStarted(String settlementId) {
+		return "Undo not started: its record couldn't be saved, so nothing was taken down. Run /steward undo " + settlementId + " again.";
 	}
 
 	/** Closes an entry's intent note: the undo stopped or was refused, so a later removal by something else is never taken for it. */

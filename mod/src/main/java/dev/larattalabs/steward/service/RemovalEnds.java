@@ -113,16 +113,29 @@ public final class RemovalEnds {
 			if (Undo.busy(s.id())) continue;
 			List<Settlement.LogEntry> logged;
 			try {
-				logged = Undo.finish(srv, s, e.kind(), e.id(), say);
+				logged = Undo.finish(srv, s, doneKind(e), doneId(e), say);
 			} catch (RuntimeException | LinkageError x) {
 				Steward.LOGGER.warn("{}: removal {} {} finished, but could not be logged (the sweep looks again)", s.id(), e.kind(), e.id(), x);
 				continue;
 			}
 			// its refund is said only when this event's own removal was logged now (the sweep says what it logs from Architect's snapshot)
-			if (logged.stream().noneMatch(x -> Undo.endedBy(x, e.kind(), e.id()))) continue;
+			if (logged.stream().noneMatch(x -> Undo.endedBy(x, doneKind(e), doneId(e)))) continue;
 			for (String line : said(e.refund(), OwedParts.owedTo(s.owner(), e.owed()), over(srv, s), s.id())) say.accept(s.id(), line);
 		}
 		SettlementRunner.removalFinished(e.kind(), e.id());
+	}
+
+	/**
+	 * (T4RD-S, GPT P1-1) The kind the event is evidence for: a group's event naming a stage ({@code kind group}, {@code stage} set) is that stage's
+	 * end only, never the whole group's ({@code "stage"}, which no entry's match takes as gone). Pure.
+	 */
+	static String doneKind(RemovalEnd e) {
+		return "group".equals(e.kind()) && e.stage() != null ? "stage" : e.kind();
+	}
+
+	/** The id {@link #doneKind} names: {@code <group>/<stage>} for a stage. Pure. */
+	static String doneId(RemovalEnd e) {
+		return "group".equals(e.kind()) && e.stage() != null ? e.id() + "/" + e.stage() : e.id();
 	}
 
 	/**

@@ -4737,7 +4737,8 @@ public final class SettlementRunner {
 		}
 		if (!village() || vRegionId == null || state == null || !alive()) return;
 		// a growth cancelled while it was still being placed: asked again each second until it can be taken up
-		if (growth() && state.phase() == Pipeline.Phase.CANCELLING && !growthTakingUp) { cancelGrowth(); return; }
+		// (T4RD-S, GPT P2-5) never while its take-up is held: the bounded re-read (holdCancel) or the event reads it again
+		if (growth() && state.phase() == Pipeline.Phase.CANCELLING && !growthTakingUp && !cancelHeld) { cancelGrowth(); return; }
 		if (state.phase() != Pipeline.Phase.PLACING && state.phase() != Pipeline.Phase.READY_TO_PLACE) return;
 		if (growth()) { watchGrowth(); return; }
 

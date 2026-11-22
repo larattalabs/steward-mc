@@ -240,6 +240,44 @@ class T4RDTest {
 	}
 
 	@Test
+	void aStagesEndIsNeverTheWholeGroupsEvidence() throws IOException {
+		a.features = T4;
+		String id = nextId();
+		Settlement s = project(id, "grp_st", "s1", "s2", "s3");
+		a.siteAnswers.put("s2", Answer.HELD_DECIDED);
+		Undo.mark(s.id(), true);
+		var e = placing(s);
+		Undo.chainUndo(null, ArchitectAccess.api().sites(null), s, e, List.of("s3", "s2", "s1"), false, Map.of(), new RemoveOptions(false, s.owner()), said::add);
+		assertEquals(0, count(now(id), Kind.PROJECT_REMOVED), "held: nothing logged yet");
+		var lines = new ArrayList<String>();
+		// another stage of the same group finished: s2 and s1 still stand
+		RemovalEnds.handle(null, new RemovalEnds.RemovalEnd("group", "grp_st", "east", null, true, Map.of(), List.of()), (sid, line) -> lines.add(line));
+		assertEquals(0, count(now(id), Kind.PROJECT_REMOVED), "a stage's end retires nothing of the whole: " + lines);
+		assertEquals("stage", RemovalEnds.doneKind(new RemovalEnds.RemovalEnd("group", "g", "east", 4, true, Map.of(), List.of())));
+		assertEquals("g/east", RemovalEnds.doneId(new RemovalEnds.RemovalEnd("group", "g", "east", 4, true, Map.of(), List.of())));
+		assertEquals("group", RemovalEnds.doneKind(new RemovalEnds.RemovalEnd("group", "g", true, Map.of(), List.of())));
+	}
+
+	@Test
+	void anUndoWhoseIntentCanNotBeSavedAsksArchitectNothing() throws IOException {
+		a.features = T4;
+		String id = nextId();
+		Settlement s = project(id, "grp_i", "i1", "i2");
+		var e = placing(s);
+		// the save fails (settlements disabled: the file is gone)
+		Settlements.useForTest(Settlements.store(), null);
+		Undo.mark(s.id(), true);
+		Undo.groupUndo(null, ArchitectAccess.api().sites(null), s, e, e.siteGroup(), e.siteIds(), Map.of(), new RemoveOptions(false, s.owner()), said::add);
+		Undo.mark(s.id(), true);
+		Undo.chainUndo(null, ArchitectAccess.api().sites(null), s, e, List.of("i2", "i1"), false, Map.of(), new RemoveOptions(false, s.owner()), said::add);
+		assertEquals(0, a.count("sites.removeGroup"), "persist before mutate");
+		assertEquals(0, a.count("sites.remove "), "persist before mutate");
+		assertEquals(2, said.stream().filter(l -> l.equals(Undo.notStarted(id))).count(), String.valueOf(said));
+		assertFalse(Undo.busy(id));
+		assertTrue(a.sites.containsKey("i1") && a.sites.containsKey("i2"));
+	}
+
+	@Test
 	void aVillageUndoRefusedAsBusyIsNotedInTheStewardsWords() throws IOException {
 		a.features = T4;
 		String id = nextId();
@@ -327,13 +365,17 @@ class T4RDTest {
 		assertFalse(c.waiting("st_s@2"));
 		assertFalse(c.releaseWaits(finished("site", "tx-1", null)), "another change is never released by a removal's end");
 		assertTrue(c.waiting("st_o@2"));
-		// a blocker Steward can't name (a detail token, or untyped): any removal's end may be it
+		// a blocker Steward can't name (a detail token, or untyped): only its bounded timer, never an unrelated removal's end (GPT P1-3)
 		c.refused("st_t@2", SiteBusy.of(new Refusal(Reason.SITE_BUSY, "x", List.of(), "removal_in_progress:grp_3")), "why");
 		c.refused("st_u@2", new SiteBusy.Held(SiteBusy.Kind.OTHER, null, null, false), "why");
-		assertTrue(c.releaseWaits(finished("site", "anything", null)));
-		assertFalse(c.waiting("st_t@2") || c.waiting("st_u@2"));
-		assertTrue(c.waiting("st_o@2"));
+		for (int i = 0; i < 20; i++) assertFalse(c.releaseWaits(finished("site", "anything" + i, null)));
+		assertFalse(c.releaseWaits(finished("group", "grp_3", null)), "even its own id: without the blocker's kind nothing matches");
+		assertTrue(c.waiting("st_t@2") && c.waiting("st_u@2") && c.waiting("st_o@2"));
 		assertFalse(c.releaseWaits(null));
+		// a busy preview (checkDelta) is read the same way
+		assertNotNull(Updates.BusyUpdates.busyOf(List.of(new Refusal(Reason.SITE_BUSY, "SENTINEL-RAW", List.of(), "waiting_behind:rg_1"))));
+		assertNotNull(Updates.BusyUpdates.busyOf(List.of(new Refusal(Reason.OVERLAP, "x"), new Refusal(Reason.SITE_BUSY, "SENTINEL-RAW"))));
+		assertNull(Updates.BusyUpdates.busyOf(List.of(new Refusal(Reason.OVERLAP, "x"))));
 	}
 
 	@Test

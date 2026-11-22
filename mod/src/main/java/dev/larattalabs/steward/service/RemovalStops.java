@@ -303,7 +303,7 @@ public final class RemovalStops {
 
 	/** (T4RD-S) An unrecorded road's take-up (row 7) refused as busy: tried again later by itself. {@code why} says what the road is. Pure. */
 	static String roadBusy(String why, String roadId, SiteBusy.Held h, String blocker) {
-		return why + ": the road " + roadId + " is taken up once " + (h.waits() ? blocker + " next to it is cleared" : "Architect has finished another change there")
+		return why + ": it is taken up once " + (h.waits() ? blocker + " next to it is cleared" : "Architect has finished another change there")
 			+ ".";
 	}
 

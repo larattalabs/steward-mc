@@ -46,7 +46,10 @@ export function afterDecision(states) {
 export function heldWords(text) {
   // (T4R-PIN) only what was said to the player (the client log's chat lines): Architect's and Steward's own log lines name txns (`Txn event:
   // tx-9 ...`) and are never said
-  const t = String(text ?? '').split('\n').filter((l) => l.includes('[CHAT]')).join('\n');
+  const said = String(text ?? '').split('\n').filter((l) => l.includes('[CHAT]'));
+  // (GPT P2-7) nothing said at all is no proof: the client's chat wasn't captured
+  if (!said.length) return { ok: false, why: 'no chat lines captured after the decision: nothing to judge' };
+  const t = said.join('\n');
   const stop = /Undo stopped|could not be taken up|again once it is clear|held\(|tx-\d+/.exec(t);
   if (stop) return { ok: false, why: `a stop or Architect's text after the decision: "${stop[0]}"` };
   return { ok: true, why: /Undo under way/.test(t) ? 'said as under way' : 'no stop said' };

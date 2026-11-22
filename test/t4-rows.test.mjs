@@ -49,6 +49,9 @@ test('the words are what was said in chat, never Architect\'s or Steward\'s own 
     '[15:29:57] [Server thread/INFO] (steward_mc) set_1: the undo of group g5 is decided and held: held(decided) tx-9', chat('Undone: the town\'s change is taken up')].join('\n');
   assert.equal(heldWords(log).ok, true);
   assert.equal(heldWords(`${log}\n${chat('Undo stopped: x')}`).ok, false);
+  // nothing said at all is a FAIL (zero results is never a pass)
+  assert.equal(heldWords('').ok, false);
+  assert.equal(heldWords(log.split('\n').slice(0, 2).join('\n')).ok, false);
 });
 
 test('the unchanged re-undo: NOT_ALLOWED as today, or the replayed answer on a txn removal', () => {
