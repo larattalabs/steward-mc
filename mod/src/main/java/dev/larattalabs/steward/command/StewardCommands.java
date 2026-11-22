@@ -241,6 +241,15 @@ public final class StewardCommands {
 					dev.larattalabs.steward.service.SettlementRunner.devCapShort("none".equals(item) ? null : item);
 					ctx.getSource().sendSuccess(() -> Component.literal("cap_short " + item), false);
 					return 1;
+				}))).then(Commands.literal("checks").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> {
+					// dev (the e2e check, B092-LEFT-2): how many plan checks (Composer.check) settlement <id> entered since the game started:
+					// "checks <id> <n>"; a development environment only
+					if (!host(ctx.getSource())) return 0;
+					if (!dev.larattalabs.steward.module.ModuleDev.allowed()) { ctx.getSource().sendFailure(Component.literal("checks are counted only in a development environment")); return 0; }
+					String id = StringArgumentType.getString(ctx, "id");
+					int n = dev.larattalabs.steward.service.Composer.devChecks(id);
+					ctx.getSource().sendSuccess(() -> Component.literal("checks " + id + " " + n), false);
+					return 1;
 				}))).then(Commands.literal("modules").then(Commands.argument("request", StringArgumentType.greedyString()).executes(ctx -> {
 					// dev (the e2e check, slice M3): offer modules from a catalog directory ({dir, id, measuring?, bounds?}; {} the live catalog again)
 					if (!host(ctx.getSource())) return 0;
