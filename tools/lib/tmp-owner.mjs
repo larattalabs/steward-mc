@@ -211,6 +211,24 @@ export function cleanupOwned(opts = {}) {
   return [...owned].map(([dir, o]) => [dir, removeOwned(dir, { ...o, ...opts })]);
 }
 
+/**
+ * (E2E-SPEED-2 item 5) cleanupOwned at a driver's normal end, with a bounded retry: a straggler (the sidecar, the client's grandchild) writing into
+ * the dir during its removal used to leave it 'failed' (marked again) until some later run's sweep, 2-6 GiB on the RAM disk. Each failed dir is
+ * tried again up to `tries` times, `waitMs` apart; what still fails is said by the caller. -> [[dir, outcome]].
+ */
+export async function cleanupOwnedSettled({ tries = 4, waitMs = 3000, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), remove = removeOwned, ...opts } = {}) {
+  const out = [];
+  for (const [dir, o] of [...owned]) {
+    let how = remove(dir, { ...o, ...opts });
+    for (let i = 1; i < tries && how === 'failed'; i++) {
+      await sleep(waitMs);
+      how = remove(dir, { ...o, ...opts });
+    }
+    out.push([dir, how]);
+  }
+  return out;
+}
+
 /** The dirs this process owns now (tests, logs). */
 export const ownedDirs = () => [...owned.keys()];
 
