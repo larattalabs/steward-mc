@@ -19,7 +19,8 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { regionUntilBy, readSince } from './lib/region-wait.mjs';
 import { rareFeedDue } from './lib/rare-feed.mjs';
-import { pickFlows, groupFlows, packFlows, codeBlocks, closureOf, fixtureRefs, hashPaths, hashText, hashLib, skipDecision, applySkips, isStrict, mergeFlowSeconds, tierSkips, fastPick, fastNames, projectWall, LANE_OVERHEAD_S, blocksWithLibs, touchedByFiles } from './lib/e2e-flows.mjs';
+import { orderUnits, simulateQueue, unitQueue, unitBoundS, laneSession, queueFailRows } from './lib/e2e-queue.mjs';
+import { pickFlows, groupFlows, codeBlocks, closureOf, fixtureRefs, hashPaths, hashText, hashLib, skipDecision, applySkips, isStrict, mergeFlowSeconds, tierSkips, fastPick, fastNames, LANE_OVERHEAD_S, blocksWithLibs, touchedByFiles } from './lib/e2e-flows.mjs';
 import { useRamTmp, ramSidecarData, RAM_TMP, reapSidecar, copyEvidence } from './lib/ram-tmp.mjs';
 import { sweepStale, cleanupOwnedSettled, keptBounds } from './lib/tmp-owner.mjs';
 import { checkCommand, saveBarrier } from './lib/save-barrier.mjs';
@@ -77,9 +78,14 @@ const fastTier = process.argv.includes('--fast');
 const touchedBase = argOf('--touched-base');
 const flowsArg = argOf('--flows');
 const exact = flowsArg == null ? null : flowsArg.split(',').map((w) => w.trim()).filter(Boolean);
+// (E2E-QUEUE) --queue is what a --clients lead gives each client: after the sanity set it asks the lead for units of flows over Node's IPC
+// channel, one at a time, until none is left (tools/lib/e2e-queue.mjs); never typed by hand
+const QUEUE = process.argv.includes('--queue');
 const ports = portsArg ? portsArg.split(',').map(Number) : null;
+const PLAN_ARG = process.argv.includes('--plan');
 if (!['free', 'stub'].includes(mode) || (only && !only.length) || !(Number.isInteger(clients) && clients >= 1) || !(stagger >= 0)
   || (ports && (ports.length < clients || ports.some((p) => !(Number.isInteger(p) && p > 0)))) || (exact && (only || clients > 1 || fastTier))
+  || (QUEUE && (exact || only || clients > 1 || fastTier || PLAN_ARG || typeof process.send !== 'function'))
   || (fastTier && (mode !== 'stub' || fullTier))) {
   console.error('usage: node tools/e2e.mjs free|stub [--only word,word] [--fast (stub; light-only batches)] [--full] [--keep-world] [--clients N [--ports p1,p2] [--stagger s]] [--skip-unchanged] [--plan]');
   process.exit(2);
@@ -10304,30 +10310,86 @@ function flow(name, tags, fn, needs = [], { nightlyOnly = null, full = null } = 
   for (const n of needs) if (!flows.some((f) => f.name === n)) throw new Error(`flow ${name} needs ${n}, which is not named before it`);
   flows.push({ name, tags, fn, needs, nightlyOnly, full });
 }
-/** Runs the named flows (`flow` lines name each, for a rerun of what failed; a pulled-in one says which flow needs it). */
-async function runFlows() {
+/**
+ * Runs the named flows (`flow` lines name each, for a rerun of what failed; a pulled-in one says which flow needs it). A --clients child (--queue)
+ * runs the units its lead hands out instead (queueFlows); `claimed` false (the claim failed, no flows named): it asks for none.
+ */
+async function runFlows(claimed = true) {
   flowsRan = true;
   flowsAt = Date.now();
+  if (QUEUE) return queueFlows(claimed);
   const { why } = planFlows();
   const order = exact ? exact.map((n) => flows.find((f) => f.name === n)).filter(Boolean) : [...flows];
   for (const f of flows) if (!why.has(f.name)) skipped.push(f.name);
   flows.splice(0);
   for (const f of order) {
     if (!why.has(f.name)) continue;
-    console.log(`flow ${f.name}${why.get(f.name) ? ` (needed by ${why.get(f.name)})` : ''}`);
-    const t0 = Date.now();
-    flowT0 = t0;
-    const load = Math.round(os.loadavg()[0] * 10) / 10;
-    const before = results.length;
-    try {
-      await clearAnimals();
-      await f.fn();
-    } finally {
-      const mine = results.slice(before);
-      flowT0 = 0;
-      flowTimes.push({ name: f.name, seconds: Math.round((Date.now() - t0) / 1000), load, checks: mine.length, failed: mine.filter((r) => !r.ok).length });
-    }
+    await runOneFlow(f, why.get(f.name) ? ` (needed by ${why.get(f.name)})` : '');
   }
+}
+
+/** One flow: its `flow` line, its checks timed (`t`), its row in summary.json's flows. */
+async function runOneFlow(f, note = '') {
+  console.log(`flow ${f.name}${note}`);
+  const t0 = Date.now();
+  flowT0 = t0;
+  const load = Math.round(os.loadavg()[0] * 10) / 10;
+  const before = results.length;
+  try {
+    await clearAnimals();
+    await f.fn();
+  } finally {
+    const mine = results.slice(before);
+    flowT0 = 0;
+    flowTimes.push({ name: f.name, seconds: Math.round((Date.now() - t0) / 1000), load, checks: mine.length, failed: mine.filter((r) => !r.ok).length });
+  }
+}
+
+/** (E2E-QUEUE) How long a --queue child waits for its lead's answer to an ask (it answers at once; a lead that doesn't is gone or stuck). */
+const QUEUE_ASK_MS = 120_000;
+/** The lead's answer to one ask, {type: 'unit', unit} or {type: 'end'}; null (and a FAIL) when the channel closed or no answer came in time. */
+function askLead(msg) {
+  return new Promise((resolve) => {
+    let timer = null;
+    const done = (m, why) => {
+      clearTimeout(timer);
+      process.off('message', onMsg);
+      process.off('disconnect', onGone);
+      if (why) fail('queue', why);
+      resolve(m);
+    };
+    const onMsg = (m) => { if (m?.type === 'unit' || m?.type === 'end') done(m); };
+    const onGone = () => done(null, 'the lead closed the queue channel (it is gone): no more units');
+    process.on('message', onMsg);
+    process.on('disconnect', onGone);
+    timer = setTimeout(() => done(null, `no answer from the lead within ${QUEUE_ASK_MS / 1000}s: no more units`), QUEUE_ASK_MS);
+    try { process.send(msg); } catch (e) { done(null, `could not ask the lead (${e.message}): no more units`); }
+  });
+}
+
+/**
+ * (E2E-QUEUE) A --clients child's flows: asks its lead for a unit, runs its flows in order, says it is done (with its rows, in case this
+ * driver's summary never gets written) and asks again, until the lead says there are none left. A flow it doesn't register fails (never a
+ * silent skip); a flow that throws ends the child as before (the lead fails that unit and the others go on to the other clients).
+ */
+async function queueFlows(claimed) {
+  const reg = new Map(flows.map((f) => [f.name, f]));
+  flows.splice(0);
+  if (!claimed) { console.log('queue: the claim failed: no units asked for (the other clients take them)'); return; }
+  let done = null;
+  for (;;) {
+    const m = await askLead({ type: 'next', ...(done ? { done: done.id, rows: done.rows } : {}) });
+    if (!m || m.type !== 'unit') break;
+    const r0 = results.length, f0 = flowTimes.length;
+    for (const n of m.unit.flows) {
+      const f = reg.get(n);
+      if (!f) { fail('queue', `unit ${m.unit.id} names ${n}, which this run doesn't register`); continue; }
+      await runOneFlow(f, ` (unit ${m.unit.id})`);
+    }
+    done = { id: m.unit.id, rows: { results: results.slice(r0), flows: flowTimes.slice(f0) } };
+  }
+  // the channel no longer keeps this driver alive: the restart check and the quit follow, then the exit
+  try { process.channel?.unref(); } catch {}
 }
 
 // ------------------------------------------------------------------ slice EF: faster runs (mod/DEV.md "Faster runs")
@@ -10503,39 +10565,55 @@ async function lead() {
   for (let i = 0; i < names.length; i++) for (let j = i + 1; j < names.length; j++) if ([...touch.get(names[i])].some((w) => touch.get(names[j]).has(w))) together.push([names[i], names[j]]);
   const groups = groupFlows(flows, new Set(why.keys()), together);
   const secs = flowSeconds();
-  let lanes = packFlows(groups, secs, clients).filter((l, i) => i === 0 || l.flows.length);
-  if (lanes.length < clients) console.log(`clients: only ${lanes.length} group(s) of flows to share: ${lanes.length} client(s)`);
+  // (E2E-QUEUE) the groups are the queue's units, longest first; each client takes the next one when it is free (per-flow times swing about 40%
+  // with load and order, so lanes packed up front came out lopsided: b096 c1 6563 s, c2 3183 s)
+  const units = orderUnits(groups, secs);
+  const sim = simulateQueue(units, clients, { overhead: LANE_OVERHEAD_S, stagger: stagger || 120 });
+  if (sim.lanes.length < clients) console.log(`clients: only ${units.length} unit(s) of flows to share: ${sim.lanes.length} client(s)`);
   for (const f of flows) if (!why.has(f.name) && !unchanged.some((u) => u.name === f.name)) skipped.push(f.name);
   keyFlows([...why.keys()]);
+  console.log(`queue: ${units.length} unit(s), longest first (recorded seconds; a unit runs whole, in order, on one client):`);
+  for (const u of units) console.log(`  unit ${u.id}: ~${u.seconds}s${u.untimed ? ` (${u.untimed} untimed)` : ''} ${u.flows.join(', ')}`);
   const base = ports ?? null;
-  const plan = lanes.map((l, i) => {
+  const plan = sim.lanes.map((l, i) => {
     const k = i + 1;
     const sp = base ? base[i] : Number(process.env.STEWARD_PORT ?? 8590) + 2 * i;
-    return { k, flows: l.flows, packed: l.seconds, untimed: l.untimed, sidecarPort: sp, devPort: sp + 1, gameDir: k === 1 ? path.join(ROOT, 'mod', 'run') : path.join(ROOT, 'mod', laneDirName(k, RUN_TAG)), out: path.join(BASE, `c${k}`) };
+    return { k, flows: [], simulated: l, sidecarPort: sp, devPort: sp + 1, gameDir: k === 1 ? path.join(ROOT, 'mod', 'run') : path.join(ROOT, 'mod', laneDirName(k, RUN_TAG)), out: path.join(BASE, `c${k}`) };
   });
-  for (const c of plan) console.log(`client c${c.k} (${c.sidecarPort}/${c.devPort}, ${path.relative(ROOT, c.gameDir)}): ~${c.packed}s recorded${c.untimed ? `, ${c.untimed} untimed` : ''}: ${c.flows.join(', ') || 'the sanity set only'}`);
-  // (E2E-SPEED-2) the projected wall: each lane's start (the stagger, else the queue's 120 s settle), about 4 min of launch, sanity set and restart, its flows
-  const proj = projectWall(lanes, { sanity: LANE_OVERHEAD_S, stagger: stagger || 120 });
-  console.log(`projected wall ~${Math.round(proj.wall / 60)} min for ${lanes.reduce((a, l) => a + l.seconds, 0)}s of flows on ${lanes.length} client(s) (lanes end ~${proj.lanes.map((x) => Math.round(x / 60)).join('/')} min)`);
+  // the nightly's --dry reads these lines (tools/nightly.mjs dryFit): each client's simulated seconds of flows
+  for (const c of plan) console.log(`client c${c.k} (${c.sidecarPort}/${c.devPort}, ${path.relative(ROOT, c.gameDir)}): ~${c.simulated.seconds}s recorded${c.simulated.untimed ? `, ${c.simulated.untimed} untimed` : ''}, simulated: units ${c.simulated.units.join(', ') || 'none (the sanity set only)'}`);
+  // the projected wall: the queue run greedily against the recorded seconds (each client's start: the stagger, else the queue's 120 s settle, then
+  // about 4 min of launch, sanity set and restart)
+  console.log(`projected wall ~${Math.round(sim.wall / 60)} min for ${units.reduce((a, u) => a + u.seconds, 0)}s of flows on ${sim.lanes.length} client(s) (clients end ~${sim.lanes.map((l) => Math.round(l.end / 60)).join('/')} min)`);
   if (PLAN) process.exit(0);
+  const queue = unitQueue(units, { boundOf: (u) => unitBoundS(u) });
   // slice SQ: one slot per client, held by this lead (its pid) and handed to the client's run (E2E_SLOT_TICKET); a lane whose slot doesn't come
-  // runs after c1 on c1's slot, run dir and ports (runLanes)
+  // runs after c1 on c1's slot, run dir and ports (runLanes), if units are left by then
   const t00 = Date.now();
   // (batch-074 review) the child drivers this lead started, and the client pids each said: a signal stops them (forwarded, bounded, then SIGKILL
   // and their clients by those pids) before the lead's slots go back
   const procs = new Map();
+  const stopLane = async (k, p, sig, log) => {
+    const out = [`driver ${p.child.pid}: ${await stopPid(p.child.pid, { sig, graceMs: LANE_STOP_MS, exited: childExited(p.child), log })}`];
+    if (p.jvm && pidRuns(p.jvm)) out.push(`jvm ${p.jvm}: ${await stopPid(p.jvm, { graceMs: CLIENT_STOP_MS.jvm, same: () => isClientJvm(p.jvm), log })}`);
+    if (p.launcher && pidRuns(p.launcher)) out.push(`launcher ${p.launcher}: ${await stopPid(p.launcher, { graceMs: CLIENT_STOP_MS.launcher, same: () => /gradle/i.test(commandOf(p.launcher) ?? ''), log })}`);
+    return out;
+  };
   onStop(async (sig) => {
     const log = (m) => console.error(m);
     await Promise.all([...procs].map(async ([k, p]) => {
-      console.error(`shutdown: client c${k}'s driver ${p.child.pid}: ${await stopPid(p.child.pid, { sig, graceMs: LANE_STOP_MS, exited: childExited(p.child), log })}`);
-      if (p.jvm && pidRuns(p.jvm)) console.error(`shutdown: client c${k}'s jvm ${p.jvm}: ${await stopPid(p.jvm, { graceMs: CLIENT_STOP_MS.jvm, same: () => isClientJvm(p.jvm), log })}`);
-      if (p.launcher && pidRuns(p.launcher)) console.error(`shutdown: client c${k}'s launcher ${p.launcher}: ${await stopPid(p.launcher, { graceMs: CLIENT_STOP_MS.launcher, same: () => /gradle/i.test(commandOf(p.launcher) ?? ''), log })}`);
+      for (const line of await stopLane(k, p, sig, log)) console.error(`shutdown: client c${k}'s ${line}`);
     }));
   });
   const startLane = async (c, s, host) => {
     const i = c.k - 1;
     if (stagger && i && !host) { const lag = stagger * 1000 * i - (Date.now() - t00); if (lag > 0) await sleep(lag); }
     if (shuttingDownNow()) return { ...c, slot: s.slot ?? null, code: 130, seconds: 0, summary: null };
+    // (E2E-QUEUE) a further client with no unit left to take isn't started (a launch, sanity set and restart for nothing)
+    if (c.k > 1 && queue.size() === 0) {
+      console.log(`client c${c.k}: no units left in the queue: not started`);
+      return { ...c, slot: s.slot ?? null, idle: true, code: 0, seconds: 0, summary: null };
+    }
     const at = host ?? c;
     if (host) console.log(`client c${c.k}: on c${host.k}'s slot ${s.slot ?? '-'}, run dir and ports, after it`);
     // slice E2E-DISK (batch 091 review P1) and E2E-DISK-2: a lane's run-c<k>-<tag> is named for this run and made now, at its use (mkdir without
@@ -10549,13 +10627,26 @@ async function lead() {
       }
     }
     fs.mkdirSync(c.out, { recursive: true });
-    const args = [fileURLToPath(import.meta.url), mode, '--flows', c.flows.join(','), ...(keepWorld ? ['--keep-world'] : []), ...(fullTier ? ['--full'] : [])];
+    const args = [fileURLToPath(import.meta.url), mode, '--queue', ...(keepWorld ? ['--keep-world'] : []), ...(fullTier ? ['--full'] : [])];
     const env = { ...process.env, E2E_CLIENT: `c${c.k}`, E2E_LANE_OWNER: JSON.stringify(runOwner), E2E_GAME_DIR: at.gameDir, E2E_OUT: c.out, STEWARD_PORT: String(at.sidecarPort), STEWARD_DEV_PORT: String(at.devPort),
       ...(s.ticket ? { E2E_SLOT_TICKET: s.ticket, E2E_SLOT: String(s.slot ?? '') } : {}) };
-    const child = spawn(process.execPath, args, { cwd: ROOT, env, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(process.execPath, args, { cwd: ROOT, env, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] });
     const proc = { child, jvm: null, launcher: null };
     procs.set(c.k, proc);
     child.on('close', () => { if (procs.get(c.k) === proc) procs.delete(c.k); });
+    // (E2E-QUEUE) this client's side of the queue: its asks answered, each wait bounded (its start, each unit, its end); past a bound the client
+    // is stopped by pid, its unit FAILs and the rest go on to the other clients
+    const client = `c${c.k}`;
+    const session = laneSession(queue, client, {
+      send: (m) => { try { child.send(m); } catch (e) { console.log(`queue: ${client}: could not answer (${e.message})`); } },
+      stop: (why) => {
+        console.log(`queue: ${client}: stopping it: ${why}`);
+        stopLane(c.k, proc, 'SIGTERM', (m) => console.log(m)).then((lines) => { for (const line of lines) console.log(`queue: ${client}'s ${line}`); });
+      },
+      log: (m) => console.log(m),
+    });
+    child.on('message', (m) => session.message(m));
+    const ticker = setInterval(() => session.tick(), 5000);
     const said = (line) => {
       const m = /^e2e-client: jvm (\d+|-) launcher (\d+|-)/.exec(line);
       if (m) { proc.jvm = m[1] === '-' ? null : Number(m[1]); proc.launcher = m[2] === '-' ? null : Number(m[2]); }
@@ -10569,6 +10660,8 @@ async function lead() {
     prefix(child.stderr, process.stderr);
     const t0 = Date.now();
     const code = await new Promise((r) => child.on('close', (x) => r(x ?? 1)));
+    clearInterval(ticker);
+    session.close(code);
     // (E2E-SPEED-2 item 5) a child that ended without emptying its RAM-disk sidecar dir (SIGKILLed past its stop bound): emptied here, proven its
     // (this lane's game dir in the marker, the child's pid, gone, no JVM on the dir); a failed lane's evidence into its kept world first
     // this child's summary only (one SIGKILLed leaves the last run's in place): written after its spawn
@@ -10576,7 +10669,15 @@ async function lead() {
     const keptWorld = sumNow?.cleanup?.kept?.find((k) => k.what === 'the e2e world' && path.resolve(path.dirname(k.path)) === path.resolve(at.gameDir, 'saves'))?.path;
     const reap = reapSidecar(at.gameDir, { pid: child.pid, ...(keptWorld && !fs.existsSync(path.join(keptWorld, 'steward-sidecar-evidence')) ? { evidenceTo: path.join(keptWorld, 'steward-sidecar-evidence') } : {}) });
     if (reap.outcome === 'emptied' || reap.outcome === 'live' || reap.outcome === 'failed') console.log(`tmp: client c${c.k}'s sidecar dir ${reap.dir ?? '?'}: ${reap.outcome}${reap.why ? ` (${reap.why})` : ''}`);
-    return { ...c, ...(host ? { gameDir: at.gameDir, sidecarPort: at.sidecarPort, devPort: at.devPort, borrowed: `c${host.k}` } : {}), slot: s.slot ?? null, code, seconds: Math.round((Date.now() - t0) / 1000), summary: readJson(path.join(c.out, 'summary.json'), null) };
+    const taken = queue.taken(client);
+    const streamed = { results: [], flows: [] };
+    for (const u of taken) { const r = session.rows.get(u.id); if (r) { streamed.results.push(...(r.results ?? [])); streamed.flows.push(...(r.flows ?? [])); } }
+    const queueRows = queueFailRows({ client, fails: session.fails, taken, summaryFlows: sumNow ? sumNow.flows ?? [] : null });
+    // a lane the lead failed a unit on holds its run dir and world, whatever its own exit (laneRunDirs reads the code)
+    const exit = code === 0 && queueRows.results.length ? 1 : code;
+    return { ...c, ...(host ? { gameDir: at.gameDir, sidecarPort: at.sidecarPort, devPort: at.devPort, borrowed: `c${host.k}` } : {}), slot: s.slot ?? null, code: exit,
+      seconds: Math.round((Date.now() - t0) / 1000), summary: sumNow, flows: taken.flatMap((u) => u.flows), units: taken.map((u) => ({ id: u.id, status: u.status, ranS: u.ranS })),
+      packed: taken.reduce((a, u) => a + u.seconds, 0), streamed, queueRows };
   };
   // a Ctrl-C or kill of the lead stops its clients' runs (each quits its own client); its slots are released on the way out (slot-queue)
   const rows = await runLanes(plan, {
@@ -10584,8 +10685,13 @@ async function lead() {
     start: startLane,
     release: (t) => releaseSlot(t),
   });
+  // (E2E-QUEUE) units no client took (every client gone first) FAIL, each flow named: never a silent skip
+  queueLeft = queue.drain('never run: no client was left to take it');
+  for (const u of queueLeft) console.log(`queue: unit ${u.id} (${u.flows.join(', ')}) never run: no client was left to take it`);
   return rows.map((r) => ({ ...r.result, ...(r.waited ? { waited: r.waited } : {}) }));
 }
+/** (E2E-QUEUE) The units a --clients lead's queue still held when every client was gone. */
+let queueLeft = [];
 let laneRuns = null;
 /** The run-c<k>-<tag> dirs a --clients lead claimed this run (slice E2E-DISK; batch 091 review P1: claimed at their use, with runOwner's marker). */
 let leadMadeDirs = [];
@@ -10720,7 +10826,7 @@ try {
   if (LEAD) laneRuns = await lead();
   else {
     if (!CLIENT) keyFlows([...planFlows().why.keys()]);
-    await runFlows();
+    await runFlows(!!id);
     await restartRestore();
   }
 } catch (e) {
@@ -10753,12 +10859,22 @@ const clientRows = [];
 if (laneRuns) {
   // the clients' summaries merged: every result and flow names its client; a client that wrote none failed as a whole
   for (const c of laneRuns) {
+    if (c.idle) { clientRows.push({ client: `c${c.k}`, slot: c.slot ?? null, idle: 'no units left when its turn came: not started', ports: [c.sidecarPort, c.devPort], flows: [], units: [], seconds: 0, exit: 0 }); continue; }
     const s = c.summary;
-    for (const r of s?.results ?? []) results.push({ ...r, client: `c${c.k}` });
-    for (const f of s?.flows ?? []) flowTimes.push({ ...f, client: `c${c.k}` });
+    // (E2E-QUEUE) a child with no summary (killed): the rows it sent with each unit it finished stand in for it
+    for (const r of s?.results ?? c.streamed?.results ?? []) results.push({ ...r, client: `c${c.k}` });
+    for (const f of s?.flows ?? c.streamed?.flows ?? []) flowTimes.push({ ...f, client: `c${c.k}` });
+    results.push(...(c.queueRows?.results ?? []));
+    flowTimes.push(...(c.queueRows?.flows ?? []));
     if (!s) results.push({ check: 'run', ok: false, why: c.refused ? `client c${c.k} not run: ${c.refused}` : `client c${c.k} wrote no summary (exit ${c.code})`, client: `c${c.k}` });
     else if (c.code !== 0 && !(s.failed > 0)) results.push({ check: 'run', ok: false, why: `client c${c.k} exited ${c.code}`, client: `c${c.k}` });
-    clientRows.push({ client: `c${c.k}`, slot: c.slot ?? null, ...(c.borrowed ? { borrowed: c.borrowed } : {}), ...(c.waited ? { waited: c.waited } : {}), ports: [c.sidecarPort, c.devPort], gameDir: c.gameDir, flows: c.flows, packedSeconds: c.packed, seconds: c.seconds, sanitySeconds: s?.sanitySeconds ?? null, exit: c.code, failed: s?.failed ?? null });
+    clientRows.push({ client: `c${c.k}`, slot: c.slot ?? null, ...(c.borrowed ? { borrowed: c.borrowed } : {}), ...(c.waited ? { waited: c.waited } : {}), ports: [c.sidecarPort, c.devPort], gameDir: c.gameDir, flows: c.flows ?? [], units: c.units ?? [], packedSeconds: c.packed ?? 0, seconds: c.seconds, sanitySeconds: s?.sanitySeconds ?? null, exit: c.code, failed: s?.failed ?? null });
+  }
+}
+for (const u of queueLeft) {
+  for (const n of u.flows) {
+    results.push({ check: `queue ${n}`, ok: false, why: `unit ${u.id} never run: no client was left to take it`, client: 'lead' });
+    flowTimes.push({ name: n, seconds: 0, load: null, checks: 1, failed: 1, client: 'lead' });
   }
 }
 const failed = results.filter((r) => !r.ok).length;
