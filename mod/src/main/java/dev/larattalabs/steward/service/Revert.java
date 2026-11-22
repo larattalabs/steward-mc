@@ -35,6 +35,21 @@ public final class Revert {
 		return history.stream().filter(v -> v < now).max(Integer::compare).orElse(0);
 	}
 
+	/** (T4RD-S) What a revert refused as busy says: not now, why in the steward's words, and to revert again. Pure. */
+	static String busyLine(String lot, SiteBusy.Held busy) {
+		return "Not yet: the " + lot + " isn't reverted now, because " + RemovalStops.busyReason(busy) + ". Revert it again then.";
+	}
+
+	/**
+	 * (T4RD-S) The history entry a revert's answer leaves: a REVERTED entry, DONE or FAILED; a busy refusal (nothing tried, nothing failed) only a NOTE,
+	 * naming no site change ({@link Settlement#revertedFrom} and the history read REVERTED entries only). Pure.
+	 */
+	static Settlement.LogEntry entry(long at, String msg, String siteId, String lot, int from, int to, boolean ok, boolean busy) {
+		if (!ok && busy) return new Settlement.LogEntry(at, Settlement.Kind.NOTE, msg, List.of(), null);
+		return Settlement.LogEntry.of(at, Settlement.Kind.REVERTED, msg, List.of(new Settlement.SiteChange(siteId, lot, from, to)), null,
+			ok ? Settlement.Outcome.DONE : Settlement.Outcome.FAILED);
+	}
+
 	/** Starts the revert; the result comes as a chat line and a refreshed building panel. Returns what to tell the player now. */
 	public static Actions.Result start(MinecraftServer server, Settlement s, String siteId, int toVersion, UUID player) {
 		Sites sites = ArchitectApi.get().sites(server);
@@ -57,10 +72,11 @@ public final class Revert {
 			if (!ok) Steward.LOGGER.info("revert of {} to v{} refused: {}", siteId, toVersion, err != null ? SettlementRunner.message(err)
 				: r.refusals().stream().map(x -> x.reason() + " " + x.message()).toList());
 			String why = err != null ? RefusalWords.of(err) : RefusalWords.fit(r.refusals());
+			// (T4RD-S) refused as busy (another removal or change in the way): the player reverts again once it's clear; a note, never a FAILED revert
+			var busy = ok ? null : Updates.BusyUpdates.busyOf(err, r);
 			String msg = ok ? "Reverted " + lot + " to version " + r.toVersion() + " (" + Words.count(r.written(), "block", "blocks") + (r.kept().isEmpty() ? "" : ", " + r.kept().size()
-				+ " of your edits kept") + ")." : "Could not revert " + lot + ": " + why;
-			var logged = Settlements.log(s.id(), Settlement.LogEntry.of(System.currentTimeMillis(), Settlement.Kind.REVERTED, msg, List.of(new Settlement.SiteChange(siteId, lot,
-				ok ? r.fromVersion() : from, ok ? r.toVersion() : toVersion)), null, ok ? Settlement.Outcome.DONE : Settlement.Outcome.FAILED));
+				+ " of your edits kept") + ")." : busy != null ? busyLine(lot, busy) : "Could not revert " + lot + ": " + why;
+			var logged = Settlements.log(s.id(), entry(System.currentTimeMillis(), msg, siteId, lot, ok ? r.fromVersion() : from, ok ? r.toVersion() : toVersion, ok, busy != null));
 			if (ok) {
 				// the version it left is not offered again even if the history could not be saved (this session; the saved hold covers the next)
 				Updates.hold(siteId, from);

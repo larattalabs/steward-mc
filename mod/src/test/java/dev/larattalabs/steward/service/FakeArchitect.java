@@ -61,7 +61,19 @@ final class FakeArchitect {
 		 */
 		HELD_DECIDED,
 		/** (T4S-PRE, T4 change 5c) Another txn holds a resource: {@code SITE_BUSY held(other)}, nothing done, {@link #otherTimes} times; then APPLY. */
-		HELD_OTHER
+		HELD_OTHER,
+		/** (T4RD-S, A7a) Refused before it began with a typed {@code SITE_BUSY} ({@link #busy}): nothing done. */
+		BUSY
+	}
+
+	/** (T4RD-S) The typed busy a BUSY answer refuses with (its message carries Architect's raw text, never to be said). */
+	dev.larattalabs.architect.api.Busy busy = new dev.larattalabs.architect.api.Busy(dev.larattalabs.architect.api.Busy.Kind.REMOVAL_IN_PROGRESS, "grp_other",
+		"group", "steward_mc:settlement/other");
+	/** (T4RD-S) {@code Sites.removalResult(kind, id)}: by {@code kind + ":" + id}. */
+	final Map<String, RemoveResult> removalResults = new HashMap<>();
+
+	ArchitectRefused busyRefusal() {
+		return new ArchitectRefused(Reason.SITE_BUSY, "Not yet: SENTINEL-RAW is still in progress over [1,2,3]", busy);
 	}
 
 	/** (T4S-PRE) The place a {@code held(decided)} names ({@code chunk x,z}, or {@code records unreadable}). */
@@ -440,6 +452,10 @@ final class FakeArchitect {
 				yield answer(removeAnswer, () -> { for (String id : siteGroups.getOrDefault(g, List.of())) sites.remove(id); siteGroups.remove(g); });
 			}
 			case "loadHealthy" -> loadHealthy;
+			case "removalResult" -> {
+				calls.add("sites.removalResult " + a[0] + " " + a[1]);
+				yield removalResults.get(a[0] + ":" + a[1]);
+			}
 			// (CRASH-T) a composed town is placed as a region, never a batch or a site group: none
 			case "batches" -> { calls.add("sites.batches " + a[0]); yield List.of(); }
 			case "batch", "group" -> { calls.add("sites." + m + " " + a[0]); yield Optional.empty(); }
@@ -699,6 +715,7 @@ final class FakeArchitect {
 		switch (how) {
 			case HELD_DECIDED -> { held.add(apply); f.completeExceptionally(new java.util.concurrent.CompletionException(heldDecided())); }
 			case HELD_OTHER -> f.completeExceptionally(heldOther());
+			case BUSY -> f.completeExceptionally(new java.util.concurrent.CompletionException(busyRefusal()));
 			case APPLY -> { apply.run(); f.complete(new RemoveResult(true, List.of(), Map.of())); }
 			case BLOCKED -> f.complete(new RemoveResult(false, List.of(blocker), Map.of()));
 			case REFUSE -> f.completeExceptionally(new ArchitectRefused(Reason.SITE_BUSY, "refused: busy"));

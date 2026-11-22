@@ -178,7 +178,12 @@ public final class Growths {
 	/** (slice A2L) What a take-up refunded, said: Architect's refund (stockpile items, and any cargo found), or that nothing had been drawn. Pure. */
 	/** (slice A2L, GPT diff review) Architect's answer is reported in a Supplied town even when nothing came back, and anywhere when something did. */
 	public static boolean reportsRefund(dev.larattalabs.steward.model.Settlement s, dev.larattalabs.architect.api.@Nullable RemoveResult r) {
-		return r != null && (s.difficulty() == dev.larattalabs.steward.model.Difficulty.SUPPLIED || !r.refund().isEmpty());
+		return r != null && (s.difficulty() == dev.larattalabs.steward.model.Difficulty.SUPPLIED || !r.refund().isEmpty() || !OwedParts.owedTo(s.owner(), r).isEmpty());
+	}
+
+	/** (T4RD-S) A take-up's answer said: the refund, and what is owed back to the settlement apart ({@link OwedParts}: never the player's own blocks). */
+	public static String refundLine(dev.larattalabs.steward.model.Settlement s, dev.larattalabs.architect.api.RemoveResult r) {
+		return refundLine(r.refund(), OwedParts.owedTo(s.owner(), r));
 	}
 
 	public static String refundLine(java.util.Map<net.minecraft.world.item.Item, Integer> refund) {
@@ -429,6 +434,13 @@ public final class Growths {
 				return;
 			}
 			if (err == null && r.removed()) { result.accept(r); done.accept(true); return; }
+			// (T4RD-S) refused as busy before it began: said by its typed cause (never Architect's text); the player asks again
+			if (hold.busyAtAll()) {
+				Steward.LOGGER.info("undo growth {} of {} was refused as busy: {}", ref.tag(), owner, SettlementRunner.message(err));
+				say.accept(RemovalStops.growthBusy(hold, RemovalStops.blocker(server, hold, owner)));
+				done.accept(false);
+				return;
+			}
 			// answered not removed, or refused: read again (a lost answer of an undo that went through reads UNDONE)
 			var again = decide(regions.get(ref.region()), ref.rid());
 			if (again.step() == Step.GONE && (regions.get(ref.region()).isPresent() || Undo.healthy(server))) { done.accept(true); return; }

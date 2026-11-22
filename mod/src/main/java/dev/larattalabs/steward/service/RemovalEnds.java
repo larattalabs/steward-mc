@@ -12,8 +12,8 @@ import org.jspecify.annotations.Nullable;
 /**
  * (T4S-PRE) Steward's one path for a removal's end on Architect's transaction layer (T4 change 8): {@code SiteEvents.REMOVAL_FINISHED}, fired at least once
  * for every removal txn when it retires (at its EFFECTS_DONE for one never held, so there is one path), with the full {@code RemoveResult}, owed included.
- * Architect 0.83.0 has neither the event nor {@code RemoveResult.owed()}, so the event reaches Steward through {@link RemovalEnd}, a Steward-side record,
- * and {@link #handle} is unit-tested through FakeArchitect. The one-place adapter that subscribes at the pin is in {@link #init} (TODO(T4c)).
+ * The event reaches Steward through {@link RemovalEnd}, a Steward-side record ({@link #of} is the one place that reads Architect's), and {@link #handle}
+ * is unit-tested through FakeArchitect. (T4RD-S) {@link #init} subscribes once, behind the feature and a linkage guard.
  * <p>
  * Idempotent on saved state, never on a seen-event set (Steward's TXN review, round 2): {@link #handle} logs only what {@link Undo#finish} finds open and
  * unretired on a fresh read, and says words only for what it logged, so a re-fire after recovery logs and says nothing more.
@@ -26,38 +26,66 @@ public final class RemovalEnds {
 	}
 
 	/**
-	 * A removal txn's end, as Steward reads it: {@code kind} {@code group | site | region}, {@code id} the group, site or region id, {@code removed} its
-	 * result's, {@code refund} what was credited back (never owed), {@code owed} what Architect owes (its {@code RemoveResult.owed()} keys resolved to
-	 * items through {@code Sites.owed(recipient)}; listed apart, never in the refund).
+	 * A removal txn's end, as Steward reads it: {@code kind} {@code group | site | region}, {@code id} the group, site or region id, {@code stage} and
+	 * {@code revisionId} (a stage's removal, and the revision whose undo removed it; else null), {@code removed} its result's, {@code refund} what was
+	 * credited back (never owed), {@code owed} its immutable owed parts (T4R-D {@code owedParts}; each settlement says only its own, {@link OwedParts}).
 	 */
-	public record RemovalEnd(String kind, String id, boolean removed, Map<Item, Integer> refund, Map<Item, Integer> owed) {
+	public record RemovalEnd(String kind, String id, @Nullable String stage, @Nullable Integer revisionId, boolean removed, Map<Item, Integer> refund,
+		List<dev.larattalabs.architect.api.OwedPart> owed) {
+		public RemovalEnd {
+			refund = refund == null ? Map.of() : Map.copyOf(refund);
+			owed = owed == null ? List.of() : List.copyOf(owed);
+		}
+
+		/** Without a stage or revision (a site, road, group or region). */
+		public RemovalEnd(String kind, String id, boolean removed, Map<Item, Integer> refund, List<dev.larattalabs.architect.api.OwedPart> owed) {
+			this(kind, id, null, null, removed, refund, owed);
+		}
 	}
+
+	/** (T4RD-S) Architect's event as Steward's record: the one place that reads {@code RemovalFinished}. Pure. */
+	static RemovalEnd of(dev.larattalabs.architect.api.RemovalFinished e) {
+		var r = e.result();
+		return new RemovalEnd(e.kind(), e.id(), e.stage(), e.revisionId(), r.removed(), r.refund(), r.owedParts());
+	}
+
+	/** Whether the event is subscribed (once per game, never again on a second world). */
+	private static volatile boolean subscribed;
 
 	/** The server of the running world (the event's listener posts to it). */
 	private static volatile @Nullable MinecraftServer server;
 
 	/**
-	 * Wires the event. TODO(T4c): the one-place adapter. At the Architect pin carrying T4c ({@code SiteEvents.REMOVAL_FINISHED}, feature
-	 * {@code "removal_finished"}, {@code RemoveResult.owed()}, {@code Sites.owed(recipient)}), add inside this method, gated on {@link #enabled()}:
-	 * <pre>{@code
-	 * dev.larattalabs.architect.api.SiteEvents.REMOVAL_FINISHED.register(e -> {
-	 *     MinecraftServer srv = server;
-	 *     if (srv == null || !enabled()) return;
-	 *     srv.execute(() -> handle(srv, new RemovalEnd(e.kind(), e.id(), e.result().removed(), e.result().refund(),
-	 *         owedItems(srv, e.result().owed())), voice(srv)));
-	 * });
-	 * }</pre>
-	 * (the listener's exact shape follows the shipped {@code RemovalFinished(String kind, String id, RemoveResult result)}; Architect's binding answer,
-	 * 11-19: an undoRevision arrives as kind {@code group} with the revision's group id, plus a {@code revisionId} (null otherwise), so the held note
-	 * keyed by group id matches; a decided, held site stays listed (status removing, detail held(decided)) until retirement); {@code owedItems} sums the
-	 * {@code Owed.items} of the entries whose key the result lists, over every settlement owner's {@code Sites.owed(owner)}.
+	 * Wires the event (T4RD-S, the T4c adapter): {@code SiteEvents.REMOVAL_FINISHED} subscribed once, at the first world whose Architect advertises
+	 * {@link #FEATURE}; an Architect without the event (a {@link LinkageError}) is logged and left to the sweep. Each event is posted to the server thread
+	 * and {@link #handle}d, and updates that waited behind a removal are looked at again ({@link Updates#removalFinished}). Which held note an event ends
+	 * (kind, id, stage, revision) is {@link Undo#finish}'s one match.
 	 */
 	public static void init() {
 		net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STARTING.register(srv -> server = srv);
 		net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STOPPING.register(srv -> server = null);
 		net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STARTED.register(srv -> {
-			if (enabled()) Steward.LOGGER.warn("Architect advertises {}, but this Steward has no RemovalFinished adapter yet (T4c): held removals finish by"
-				+ " the sweep only", FEATURE);
+			if (subscribed || !enabled()) return;
+			try {
+				dev.larattalabs.architect.api.SiteEvents.REMOVAL_FINISHED.register(e -> {
+					MinecraftServer srv2 = server;
+					if (srv2 == null || e == null) return;
+					RemovalEnd end;
+					try {
+						end = of(e);
+					} catch (RuntimeException | LinkageError x) {
+						Steward.LOGGER.warn("a removal finished, but its result could not be read (the sweep looks again)", x);
+						return;
+					}
+					srv2.execute(() -> {
+						Updates.removalFinished();
+						handle(srv2, end, voice(srv2));
+					});
+				});
+				subscribed = true;
+			} catch (LinkageError x) {
+				Steward.LOGGER.warn("Architect advertises {}, but its REMOVAL_FINISHED could not be subscribed: held removals finish by the sweep only", FEATURE, x);
+			}
 		});
 	}
 
@@ -79,7 +107,7 @@ public final class RemovalEnds {
 	 */
 	static void handle(@Nullable MinecraftServer srv, RemovalEnd e, BiConsumer<String, String> say) {
 		if (e == null || e.kind() == null || e.id() == null) return;
-		Steward.LOGGER.info("removal {} {} finished (removed {}, refund {}, owed {})", e.kind(), e.id(), e.removed(), e.refund().size(), e.owed().size());
+		Steward.LOGGER.info("removal {} {} finished (removed {}, refund {}, owed parts {})", e.kind(), e.id(), e.removed(), e.refund().size(), e.owed().size());
 		if (!e.removed()) return;
 		for (Settlement s : List.copyOf(Settlements.store().all())) {
 			// an undo of it still answering in this session logs it itself (a held one has released its mark)
@@ -91,8 +119,9 @@ public final class RemovalEnds {
 				Steward.LOGGER.warn("{}: removal {} {} finished, but could not be logged (the sweep looks again)", s.id(), e.kind(), e.id(), x);
 				continue;
 			}
-			if (logged.isEmpty()) continue;
-			for (String line : said(e.refund(), e.owed(), over(srv, s), s.id())) say.accept(s.id(), line);
+			// its refund is said only when this event's own removal was logged now (the sweep says what it logs from Architect's snapshot)
+			if (logged.stream().noneMatch(x -> Undo.endedBy(x, e.kind(), e.id()))) continue;
+			for (String line : said(e.refund(), OwedParts.owedTo(s.owner(), e.owed()), over(srv, s), s.id())) say.accept(s.id(), line);
 		}
 		SettlementRunner.removalFinished(e.kind(), e.id());
 	}

@@ -106,7 +106,7 @@ class T4SeamTest {
 		assertFalse(SiteBusy.of(new ArchitectRefused(Reason.SITE_BUSY, "busy: undoing")).held());
 		assertFalse(SiteBusy.of(new ArchitectRefused(Reason.JOURNAL_UNAVAILABLE, "txn.json: unreadable", "txn_journal")).held());
 		assertFalse(SiteBusy.of(new ArchitectRefused(Reason.BILL_CAP, "x", "held(decided)")).held());
-		assertFalse(SiteBusy.of(null).held());
+		assertFalse(SiteBusy.of((Throwable) null).held());
 		assertTrue(SettlementRunner.siteBusy(new CompletionException(new ArchitectRefused(Reason.SITE_BUSY, "m", "held(decided)"))).decided());
 	}
 
@@ -321,12 +321,12 @@ class T4SeamTest {
 		assertNull(done.get());
 		a.complete();
 		var lines = new ArrayList<String>();
-		RemovalEnds.handle(null, new RemovalEnds.RemovalEnd("region", "rg_r", true, Map.of(), Map.of()), (sid, line) -> lines.add(sid + ": " + line));
+		RemovalEnds.handle(null, new RemovalEnds.RemovalEnd("region", "rg_r", true, Map.of(), List.of()), (sid, line) -> lines.add(sid + ": " + line));
 		assertEquals(1, count(now(id), Kind.PROJECT_REMOVED));
 		assertEquals(1, lines.size(), String.valueOf(lines));
 		assertTrue(lines.get(0).startsWith(id + ": Undone: \"Placed the village\" finished by itself"), lines.get(0));
 		// it fires at least once: a re-fire after recovery logs and says nothing more
-		RemovalEnds.handle(null, new RemovalEnds.RemovalEnd("region", "rg_r", true, Map.of(), Map.of()), (sid, line) -> lines.add(line));
+		RemovalEnds.handle(null, new RemovalEnds.RemovalEnd("region", "rg_r", true, Map.of(), List.of()), (sid, line) -> lines.add(line));
 		assertEquals(1, count(now(id), Kind.PROJECT_REMOVED));
 		assertEquals(1, lines.size());
 	}
@@ -342,11 +342,11 @@ class T4SeamTest {
 		a.loadHealthy = false;
 		assertFalse(Undo.finishInterrupted(null, now(id)), "the sweep can't tell from a store that did not load");
 		var lines = new ArrayList<String>();
-		RemovalEnds.handle(null, new RemovalEnds.RemovalEnd("group", "grp_g", true, Map.of(), Map.of()), (sid, line) -> lines.add(line));
+		RemovalEnds.handle(null, new RemovalEnds.RemovalEnd("group", "grp_g", true, Map.of(), List.of()), (sid, line) -> lines.add(line));
 		assertEquals(1, count(now(id), Kind.PROJECT_REMOVED), "the event's own answer");
 		// another group's end, or an aborted removal, logs nothing
-		RemovalEnds.handle(null, new RemovalEnds.RemovalEnd("group", "grp_other", true, Map.of(), Map.of()), (sid, line) -> lines.add(line));
-		RemovalEnds.handle(null, new RemovalEnds.RemovalEnd("group", "grp_g", false, Map.of(), Map.of()), (sid, line) -> lines.add(line));
+		RemovalEnds.handle(null, new RemovalEnds.RemovalEnd("group", "grp_other", true, Map.of(), List.of()), (sid, line) -> lines.add(line));
+		RemovalEnds.handle(null, new RemovalEnds.RemovalEnd("group", "grp_g", false, Map.of(), List.of()), (sid, line) -> lines.add(line));
 		assertEquals(1, count(now(id), Kind.PROJECT_REMOVED));
 		assertEquals(1, lines.size());
 	}
@@ -360,10 +360,10 @@ class T4SeamTest {
 		a.removeAnswer = Answer.HOLD;
 		group(s);
 		var lines = new ArrayList<String>();
-		RemovalEnds.handle(null, new RemovalEnds.RemovalEnd("group", "grp_u", true, Map.of(), Map.of()), (sid, line) -> lines.add(line));
+		RemovalEnds.handle(null, new RemovalEnds.RemovalEnd("group", "grp_u", true, Map.of(), List.of()), (sid, line) -> lines.add(line));
 		assertEquals(0, count(now(id), Kind.PROJECT_REMOVED), "not held: the undo's own answer logs it");
 		a.complete();
-		RemovalEnds.handle(null, new RemovalEnds.RemovalEnd("group", "grp_u", true, Map.of(), Map.of()), (sid, line) -> lines.add(line));
+		RemovalEnds.handle(null, new RemovalEnds.RemovalEnd("group", "grp_u", true, Map.of(), List.of()), (sid, line) -> lines.add(line));
 		assertEquals(1, count(now(id), Kind.PROJECT_REMOVED), "once");
 		assertEquals(List.of(), lines, "the event says nothing for it");
 		assertEquals(1, said.stream().filter(l -> l.startsWith("Undone")).count(), String.valueOf(said));
@@ -377,7 +377,9 @@ class T4SeamTest {
 		a.otherTimes = 99;
 		group(s);
 		assertEquals(Undo.OTHER_TRIES, a.count("sites.removeGroup grp_h"), "asked a bounded number of times");
-		assertTrue(String.join("\n", said).contains("Undo stopped after 0 of 1 site"), String.valueOf(said));
+		// (T4RD-S) said by its busy kind: another change holds it, nothing was taken down, ask again in a moment
+		assertTrue(String.join("\n", said).contains("Undo stopped: Architect is still finishing another change there, so nothing was taken down. Run /steward undo "
+			+ id + " again in a moment."), String.valueOf(said));
 		assertFalse(String.join("\n", said).contains("SENTINEL"));
 		assertFalse(Undo.busy(id));
 	}

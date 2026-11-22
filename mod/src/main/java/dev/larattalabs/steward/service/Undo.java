@@ -281,6 +281,15 @@ public final class Undo {
 				say.accept(RemovalStops.underWay(held));
 				return;
 			}
+			if (held.busyAtAll()) {
+				// (T4RD-S) refused before it began (another removal or change in the way): nothing taken down, nothing read as gone, never a FAILED entry
+				Steward.LOGGER.info("{}: the undo of group {} was refused as busy: {}", s.id(), group, SettlementRunner.message(err));
+				String blocker = RemovalStops.blocker(server, held, s.owner());
+				if (txn) closeEntry(s, entry, RemovalStops.busyWhy(held, blocker));
+				UNDOING.remove(s.id());
+				say.accept(RemovalStops.undoBusy(s.id(), held, blocker));
+				return;
+			}
 			boolean done = err == null && r.removed();
 			// gone read from absence only for an Architect that may stop part way, and only on a healthy sites read (a file that did not load lists nothing)
 			List<String> gone = done ? standing : txn || !healthy(server) ? List.of() : standing.stream().filter(id -> sites.get(id).isEmpty()).toList();
@@ -312,6 +321,8 @@ public final class Undo {
 
 	/** The chain's stop when a removal is decided and held (the held site and its hold are kept beside it). */
 	private static final String HELD_STOP = "\u0000held";
+	/** (T4RD-S) The chain's stop when a site's removal is refused as busy (its hold kept beside it): nothing of that site began. */
+	private static final String BUSY_STOP = "\u0000busy";
 	/** The chain's stop when a site reads absent on a sites read that did not load cleanly: it can't be told gone. */
 	static final String RECORDS_STOP = "Architect's records didn't load, so the rest can't be told apart";
 
@@ -346,6 +357,11 @@ public final class Undo {
 							Steward.LOGGER.info("{}: the undo of site {} is decided and held: {}", s.id(), id, SettlementRunner.message(err));
 							return HELD_STOP;
 						}
+						if (h.busyAtAll()) {
+							heldHow[0] = h;
+							Steward.LOGGER.info("{}: the undo of site {} was refused as busy: {}", s.id(), id, SettlementRunner.message(err));
+							return BUSY_STOP;
+						}
 						throw err instanceof java.util.concurrent.CompletionException ce ? ce : new java.util.concurrent.CompletionException(err);
 					}
 					if (r.removed()) {
@@ -370,6 +386,13 @@ public final class Undo {
 			if (!fresh.isEmpty() && !Settlements.log(s.id(), removed(entry, fresh, removed.size() == ids.size(), now)).ok()) say.accept(UNLOGGED);
 			UNDOING.remove(s.id());
 			districts(server, s, say);
+			if (BUSY_STOP.equals(stop)) {
+				// (T4RD-S) the sites before it are logged as removed; the rest stand, said by the busy cause in the steward's words
+				String blocker = RemovalStops.blocker(server, heldHow[0], s.owner());
+				if (txn) closeEntry(s, entry, RemovalStops.busyWhy(heldHow[0], blocker));
+				say.accept(RemovalStops.undoBusy(s.id(), removed.size(), ids.size(), heldHow[0], blocker));
+				return;
+			}
 			// (raw-text) Architect's error and blockers are logged, never said: a site's removal has no typed cause, so the generic words
 			if (err != null) {
 				if (txn) closeEntry(s, entry, SITES_NOT_NOW);
@@ -494,6 +517,8 @@ public final class Undo {
 				heldDone.run();
 				return;
 			}
+			// (T4RD-S) refused as busy before it began: said by its typed cause, noted, never as Architect's text
+			String busyBlocker = hold.busyAtAll() ? RemovalStops.blocker(server, hold, s.owner()) : null;
 			// taken up only when Architect says so (1.14 C22: a retried removal finishes the restorations it left, or answers not removed)
 			boolean ok = err == null && r.removed();
 			// logged once (slice VSR): two asks of one removal (Architect joins them) retire the entry once
@@ -509,10 +534,11 @@ public final class Undo {
 			var stop = ok || err != null ? null : RemovalStops.of(region);
 			var cause = ok || err != null ? null : RemovalStops.cause(region);
 			String line = ok ? null : held != null ? "Undo stopped: " + held + ". " + RemovalStops.again(null, "/steward undo " + s.id())
+				: busyBlocker != null ? RemovalStops.undoBusy(s.id(), hold, busyBlocker)
 				: err != null ? "Undo stopped: " + NOT_NOW + ". Run /steward undo " + s.id() + " again."
 				: RemovalStops.undoStopped(stop, cause, s.id());
 			// (batch review 2) a refused undo's note is closed: a later removal by something else is never taken for this undo
-			String note = held != null ? held : err != null ? NOT_NOW : RemovalStops.noted(stop, cause);
+			String note = held != null ? held : busyBlocker != null ? RemovalStops.busyWhy(hold, busyBlocker) : err != null ? NOT_NOW : RemovalStops.noted(stop, cause);
 			if (!ok && intent && !Settlements.log(s.id(), closedNote(region, note)).ok()) Steward.LOGGER.warn("{}: the stopped undo of {} left its note open", s.id(), region);
 			if (line != null) say.accept(line);
 			else say.accept("Undone: the village is taken up, the land restored.");
@@ -650,12 +676,51 @@ public final class Undo {
 				if (Settlements.store().get(s.id()).flatMap(x -> x.lands().district(own.get().id())).isEmpty()) more = " " + own.get().name() + " is given up: its land is free again.";
 			}
 			say.accept(s.id(), "Undone: \"" + placed.get().text() + "\" " + (wasHeld ? "finished by itself" : "was taken up while the world was closed") + ", the land restored." + more);
+			if (!endedBy(placed.get(), doneKind, doneId)) recovered(server, s, "region", region, say);
 		}
 		logged.addAll(finishEntries(server, s, doneKind, doneId, say));
 		// a district region removed and logged, its give-up not saved (a stop between them)
 		var now = Settlements.store().get(s.id()).orElse(s);
 		for (Settlement.District d : now.lands().districts()) if (!d.square() && d.region() != null) Districts.giveUpRemoved(server, now, d);
 		return logged;
+	}
+
+	/**
+	 * (T4RD-S) Whether a removal's end ({@code kind}, {@code id}: {@code RemovalFinished}'s) is the one that took {@code placed} down: its region, its site
+	 * group, or one of its sites. The one match from an event to a logged entry. Pure.
+	 */
+	static boolean endedBy(Settlement.LogEntry placed, @org.jspecify.annotations.Nullable String kind, @org.jspecify.annotations.Nullable String id) {
+		if (kind == null || id == null) return false;
+		return switch (kind) {
+			case "region" -> id.equals(dev.larattalabs.steward.gateway.VPlan.regionOf(placed.siteGroup()));
+			case "group" -> id.equals(placed.siteGroup());
+			case "site" -> placed.siteIds().contains(id);
+			default -> false;
+		};
+	}
+
+	/**
+	 * (T4RD-S, Q8) What came back from a removal the sweep logged without hearing its answer, said once (only as the sweep logs it): Architect's immutable
+	 * snapshot ({@code Sites.removalResult}), the refund and what is owed back to the settlement ({@link OwedParts}). Nothing when Architect keeps none
+	 * (an older build's removal, evicted) or nothing came back.
+	 */
+	static void recovered(@org.jspecify.annotations.Nullable MinecraftServer server, Settlement s, String kind, String id, java.util.function.BiConsumer<String, String> say) {
+		dev.larattalabs.architect.api.RemoveResult r;
+		try {
+			r = ArchitectAccess.api().sites(server).removalResult(kind, id);
+		} catch (RuntimeException | LinkageError e) {
+			return;
+		}
+		String line = recoveredLine(s.owner(), r);
+		if (line != null) say.accept(s.id(), line);
+	}
+
+	/** {@link #recovered}'s line for a snapshot: null when there is none or nothing came back. Pure. */
+	static @org.jspecify.annotations.Nullable String recoveredLine(String owner, dev.larattalabs.architect.api.@org.jspecify.annotations.Nullable RemoveResult r) {
+		if (r == null) return null;
+		var owed = OwedParts.owedTo(owner, r);
+		if (r.refund().isEmpty() && owed.isEmpty()) return null;
+		return Growths.refundLine(r.refund(), owed);
 	}
 
 	/** Whether the newest note with {@code tag} is a held, decided removal's (T4S-PRE). Pure. */
@@ -766,6 +831,7 @@ public final class Undo {
 			String how = it.held() ? "finished by itself" : "was finished while the world was closed";
 			say.accept(s.id(), whole ? "Undone: \"" + placed.text() + "\" " + how + ", the land is restored."
 				: "Undone in part: " + Words.count(gone.size(), "site", "sites") + " of \"" + placed.text() + "\" " + how + "; the rest stands (/steward undo " + s.id() + " again).");
+			if (whole && placed.siteGroup() != null && !endedBy(placed, doneKind, doneId)) recovered(server, s, "group", placed.siteGroup(), say);
 		}
 		return logged;
 	}
@@ -820,7 +886,7 @@ public final class Undo {
 				districts(server, s, say);
 				// (slice A2L review 6) the town's build watch is dropped when only the growth kept it unbuilt: never "built" for a town that lost its addition
 				MaterialRequests.forgetIfBuilt(ref.region());
-				if (Growths.reportsRefund(s, answer.get())) say.accept(Growths.refundLine(answer.get().refund()));
+				if (Growths.reportsRefund(s, answer.get())) say.accept(Growths.refundLine(s, answer.get()));
 				say.accept("Undone: " + whose + " change is taken up, the land restored.");
 			} else say.accept("Run /steward undo " + s.id() + " again once it is clear.");
 			whenDone.accept(ok);

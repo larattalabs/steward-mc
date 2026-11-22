@@ -92,6 +92,9 @@ public final class RefusalWords {
 				if (savingOff(r.detail())) return SAVING_OFF;
 				// (T4S-PRE, T4 change 7) held because Architect's records didn't load: said so, never as busy
 				if (SiteBusy.of(r).recordsUnreadable()) return RemovalStops.RECORDS_UNREADABLE;
+				// (T4RD-S) another removal or change in the way, typed (A7a): what it waits for, never Architect's text
+				var busy = SiteBusy.of(r);
+				if (busy.busyAtAll()) return RemovalStops.busyReason(busy);
 				return reason(r.reason());
 			}
 			if (t instanceof java.util.concurrent.TimeoutException) return NO_ANSWER;
@@ -107,7 +110,11 @@ public final class RefusalWords {
 	/** A fit's refusals in the steward's words, each typed reason once, in order. Pure. */
 	static String fit(Collection<Refusal> refusals) {
 		Set<String> said = new LinkedHashSet<>();
-		for (Refusal r : refusals) said.add(reason(r == null ? null : r.reason()));
+		for (Refusal r : refusals) {
+			// (T4RD-S) a delta's or placement's busy refusal reaches Steward as its typed detail token only
+			var busy = SiteBusy.of(r);
+			said.add(busy.busyAtAll() ? RemovalStops.busyReason(busy) : reason(r == null ? null : r.reason()));
+		}
 		return said.isEmpty() ? GENERIC : String.join("; ", said);
 	}
 

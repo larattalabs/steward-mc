@@ -50,6 +50,11 @@ public final class Updates {
 	private static final Map<String, String> FAILED = new java.util.HashMap<>();
 	/** Site id -> the highest version reverted away from this session (held even when the revert's history could not be saved). */
 	private static final Map<String, Integer> HELD = new java.util.HashMap<>();
+	/**
+	 * (T4RD-S) Updates Architect refused as busy ({@code SITE_BUSY}: another removal or change in the way), never {@link #FAILED}: kept pending (asked, not
+	 * applied by itself) until the way clears, then looked at again ({@link BusyUpdates}).
+	 */
+	static final BusyUpdates BUSY = new BusyUpdates();
 	private static volatile boolean scanPending;
 	private static volatile MinecraftServer server;
 
@@ -77,6 +82,7 @@ public final class Updates {
 			SKIPPED.clear();
 			APPLYING.clear();
 			FAILED.clear();
+			BUSY.clear();
 			HELD.clear();
 			scanPending = false;
 		});
@@ -127,6 +133,10 @@ public final class Updates {
 			DeltaVerdict v = sites.checkDelta(UpdatePlanner.request(o.siteId(), o.headVersion(), UpdatePlanner.editsFor(s.permission()), s.owner()));
 			UpdatePlanner.Plan plan = UpdatePlanner.plan(lot, v, s.permission(), landFor(s, v), s.lands().protect());
 			if (follow != null) plan = FollowPlanner.asFollow(plan, sourceLot(buildings, follow), s.permission());
+			// (T4RD-S) refused as busy: waits (asked, never applied by itself) until the way clears; never a failure
+			if (plan.action() == UpdatePlanner.Action.APPLY && BUSY.waiting(key)) {
+				plan = new UpdatePlanner.Plan(UpdatePlanner.Action.ASK, lot + " waits: " + BUSY.why(key) + ".", plan.playerEdits());
+			}
 			if (plan.action() == UpdatePlanner.Action.APPLY && FAILED.containsKey(key)) {
 				plan = new UpdatePlanner.Plan(UpdatePlanner.Action.ASK, lot + " could not be updated by itself (" + FAILED.get(key) + "); update to try again.", plan.playerEdits());
 			}
@@ -208,6 +218,8 @@ public final class Updates {
 			UpdatePlanner.Plan plan = UpdatePlanner.plan(p.lot(), now, s.get().permission(), landFor(s.get(), now), s.get().lands().protect());
 			if (plan.action() == UpdatePlanner.Action.BLOCKED || !now.ok()) continue;
 			FAILED.remove(p.siteId() + "@" + p.to());
+			// (T4RD-S) the player's own ask tries it now, and the busy count starts again
+			BUSY.forget(p.siteId() + "@" + p.to());
 			apply(server, s.get(), p);
 			n++;
 		}
@@ -260,6 +272,26 @@ public final class Updates {
 			String msg;
 			String key = p.siteId() + "@" + p.to();
 			var change = new Settlement.SiteChange(p.siteId(), p.lot(), p.from(), p.to());
+			// (T4RD-S) refused as busy (a failed future's typed busy, or a delta refusal's SITE_BUSY): not applied, nothing logged as failed, said once per
+			// version; looked at again once the way clears (a removal's end, or a bounded timer)
+			var busy = BusyUpdates.busyOf(err, r);
+			if (busy != null) {
+				Steward.LOGGER.info("update of {} to v{} refused as busy: {}", p.siteId(), p.to(), err != null ? SettlementRunner.message(err)
+					: r.refusals().stream().map(x -> x.reason() + " " + x.detail()).toList());
+				var step = BUSY.refused(key, busy, RemovalStops.busyReason(busy));
+				if (step.say()) {
+					String said = "Not yet: the " + p.lot() + " isn't updated now, because " + RemovalStops.busyReason(busy) + ".";
+					server.getPlayerList().getPlayers().forEach(pl -> pl.sendSystemMessage(Component.literal("Steward (" + s.name() + "): " + said)));
+					StewardVoice.say(server, s.id(), said);
+				}
+				if (step.retryAfterMs() >= 0) BusyUpdates.LATER.accept(step.retryAfterMs(), () -> server.execute(() -> {
+					if (!Session.is(session)) return;
+					BUSY.release(key);
+					scanPending = true;
+				}));
+				scanPending = true;
+				return;
+			}
 			if (err != null) {
 				Steward.LOGGER.info("update of {} to v{} failed: {}", p.siteId(), p.to(), SettlementRunner.message(err));
 				String why = RefusalWords.of(err);
@@ -296,6 +328,105 @@ public final class Updates {
 	/** Scans again on the next tick (after a revert, or anything else that changes what is offered). */
 	public static void rescan() {
 		scanPending = true;
+	}
+
+	/** (T4RD-S) A removal finished ({@code REMOVAL_FINISHED}, any): updates that waited behind a removal are looked at again. Server thread. */
+	public static void removalFinished() {
+		if (BUSY.releaseWaits()) scanPending = true;
+	}
+
+	/**
+	 * (T4RD-S) The updates Architect refused as busy this session, keyed per version ({@code siteId@version}). An entry waits (not applied by itself) until
+	 * it is released: a wait behind a removal by any {@code REMOVAL_FINISHED} or its timer, another change's by its timer. Each version is released by
+	 * timer at most {@link #MAX_TRIES} times; past that it stays waiting (asked in the inbox) until the player asks or a removal finishes, so Full
+	 * autonomy never loops. Said once per version. Server thread; pure but for its own maps.
+	 */
+	static final class BusyUpdates {
+		/** At most this many timed re-tries of one version per session. */
+		static final int MAX_TRIES = 5;
+		/** How long a wait behind another change (no event follows it) waits before it is tried again. */
+		static final long SOON_MS = 5_000;
+		/** How long a wait behind a removal waits for its end before it is tried again anyway (the event's mapping may miss it). */
+		static final long REMOVAL_MS = 60_000;
+		/** Runs a release later (tests run it themselves). */
+		static java.util.function.BiConsumer<Long, Runnable> LATER = (ms, r) -> java.util.concurrent.CompletableFuture.delayedExecutor(ms,
+			java.util.concurrent.TimeUnit.MILLISECONDS).execute(r);
+
+		/** What to do after a busy refusal: say it ({@code say}, once per version), and release it after {@code retryAfterMs} (-1: not by timer). */
+		record Step(boolean say, long retryAfterMs) {
+		}
+
+		private record Wait(boolean behindRemoval, String why) {
+		}
+
+		private final Map<String, Wait> waiting = new java.util.HashMap<>();
+		private final Map<String, Integer> tries = new java.util.HashMap<>();
+		private final Set<String> said = new HashSet<>();
+
+		/** The typed busy of an update's answer ({@code SITE_BUSY} in its failed future or in its refusals), or null when it was not refused as busy. Pure. */
+		static SiteBusy.@org.jspecify.annotations.Nullable Held busyOf(@org.jspecify.annotations.Nullable Throwable err, dev.larattalabs.architect.api.@org.jspecify.annotations.Nullable DeltaResult r) {
+			if (err != null) {
+				var h = SiteBusy.of(err);
+				if (h.busyAtAll()) return h;
+				return refusedBusy(err) ? new SiteBusy.Held(SiteBusy.Kind.OTHER, null, null, false) : null;
+			}
+			if (r == null || r.applied()) return null;
+			for (var x : r.refusals()) {
+				if (x == null || x.reason() != dev.larattalabs.architect.api.Reason.SITE_BUSY) continue;
+				var h = SiteBusy.of(x);
+				// an untyped SITE_BUSY (the async path drops the detail; the build under it still being worked on): another change, tried again soon
+				return h.busyAtAll() ? h : new SiteBusy.Held(SiteBusy.Kind.OTHER, null, null, false);
+			}
+			return null;
+		}
+
+		/** Whether a failed future's refusal is a plain {@code SITE_BUSY} (no typed detail). Pure. */
+		private static boolean refusedBusy(Throwable err) {
+			for (Throwable t = err; t != null; t = t.getCause() == t ? null : t.getCause()) {
+				if (t instanceof dev.larattalabs.architect.api.ArchitectRefused a) return a.reason() == dev.larattalabs.architect.api.Reason.SITE_BUSY;
+			}
+			return false;
+		}
+
+		/** A version refused as busy: it waits; said the first time; a timed release while it has tries left. */
+		Step refused(String key, SiteBusy.Held h, String why) {
+			waiting.put(key, new Wait(h.waits(), why));
+			boolean first = said.add(key);
+			int n = tries.merge(key, 1, Integer::sum);
+			long after = n > MAX_TRIES ? -1 : h.waits() ? REMOVAL_MS : SOON_MS;
+			return new Step(first, after);
+		}
+
+		boolean waiting(String key) {
+			return waiting.containsKey(key);
+		}
+
+		String why(String key) {
+			Wait w = waiting.get(key);
+			return w == null ? "" : w.why();
+		}
+
+		/** Its timer ran out: it may be applied again. */
+		void release(String key) {
+			waiting.remove(key);
+		}
+
+		/** A removal finished: every version waiting behind a removal may be applied again. Whether any was. */
+		boolean releaseWaits() {
+			return waiting.values().removeIf(Wait::behindRemoval);
+		}
+
+		/** The player asked for it: tried now, counted from the start. */
+		void forget(String key) {
+			waiting.remove(key);
+			tries.remove(key);
+		}
+
+		void clear() {
+			waiting.clear();
+			tries.clear();
+			said.clear();
+		}
 	}
 
 	/** Takes an update's preview ghost away (it resolved, or was skipped). */

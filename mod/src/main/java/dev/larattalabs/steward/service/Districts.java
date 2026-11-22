@@ -665,6 +665,10 @@ public final class Districts {
 			else if (SiteBusy.of(e).decided()) {
 				Steward.LOGGER.info("road {} of {} is being taken up, decided and held: {}", siteId, s.id(), SettlementRunner.message(e));
 				say.accept(why + ": the road " + siteId + " is being taken up; " + RemovalStops.waitsFor(SiteBusy.of(e)) + ".");
+			} else if (SiteBusy.of(e).busyAtAll()) {
+				// (T4RD-S) another removal or change in the way: nothing began; the next reconcile takes it up
+				Steward.LOGGER.info("road {} of {} is not taken up yet (busy): {}", siteId, s.id(), SettlementRunner.message(e));
+				say.accept(RemovalStops.roadBusy(why, siteId, SiteBusy.of(e), RemovalStops.blocker(server, SiteBusy.of(e), s.owner())));
 			} else {
 				// (raw-text) Architect's error or blockers are logged, never said (a road's removal has no typed cause)
 				Steward.LOGGER.info("road {} of {} was not taken up: {}", siteId, s.id(), e != null ? SettlementRunner.message(e) : String.join(", ", rr.blockers()));

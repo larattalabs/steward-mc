@@ -4824,16 +4824,17 @@ public final class SettlementRunner {
 			if (!alive() || state == null || state.phase().terminal()) return;
 			if (ok) {
 				boolean refunded = answer.get() != null && !answer.get().refund().isEmpty();
+				// (T4RD-S) what is owed back to the town of what it drew (never the player's own blocks: OwedParts)
+				boolean owed = !OwedParts.owedTo(settlement.owner(), answer.get()).isEmpty();
 				// (GPT diff review) the town's build watch dropped here too when only the growth kept it unbuilt
 				MaterialRequests.forgetIfBuilt(ref.region());
 				// the completion, tagged with the growth (Growths.completed), checked on a fresh read; the build ends only once it is saved
 				var now = Settlements.store().get(settlement.id()).orElse(settlement);
-				// (OVF-S3) TODO(T4c): owed from the answer's RemoveResult.owed() once the pin has it
 				boolean done = Growths.completed(now, ref.tag()) || Settlements.log(settlement.id(), new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.NOTE,
-					Growths.notPlacedNote(why, refunded, false), List.of(), ref.tag())).ok();
+					Growths.notPlacedNote(why, refunded, owed), List.of(), ref.tag())).ok();
 				// (GPT diff review) a known empty answer is said too, in a Supplied town
 				if (Growths.reportsRefund(now, answer.get())) {
-					said.accept(Growths.refundLine(answer.get().refund()));
+					said.accept(Growths.refundLine(now, answer.get()));
 					said.accept("Undone: the town's change is taken up, the land restored.");
 				}
 				if (done) end.run();
@@ -4949,6 +4950,12 @@ public final class SettlementRunner {
 					cancelHeld = true;
 					Steward.LOGGER.info("{}: the cancel's take-up of {} is decided and held: {}", settlement.id(), id, message(err));
 					if (saidRegionWaits.add("cancel held " + id)) say(RemovalStops.underWay(siteBusy(err)));
+					return;
+				}
+				// (T4RD-S) refused as busy before it began: the cancel stays CANCELLING, said by its typed cause; the player cancels again
+				if (siteBusy(err).busyAtAll()) {
+					Steward.LOGGER.info("{}: the cancel's take-up of {} was refused as busy: {}", settlement.id(), id, message(err));
+					say(RemovalStops.cancelBusy(settlement.id(), siteBusy(err), RemovalStops.blocker(server, siteBusy(err), settlement.owner())));
 					return;
 				}
 				var after = regions.get(id);
