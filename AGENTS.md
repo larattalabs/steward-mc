@@ -46,6 +46,33 @@ lab-ui (`../lab-ui`), the shared screen kit and world UI. It has these parts:
 - Besides the strict tier (speed rules 3 and 10), changes to spending or cancellation get an independent GPT review (the second-opinion skill),
   then a check of the fixes.
 
+## Recurring review findings: design checklist
+
+Noah, 2026-11-21. The full list, with Steward's examples, is in `docs/REVIEW-PATTERNS.md`. It adds no gate and loosens no rule.
+
+- **Before building strict work:**
+  - Name the one durable record that decides "did this happen?".
+  - Persist and confirm before any world, stockpile or credit change.
+  - Make recovery itself crash-safe: crash, recover, crash again.
+  - Key per operation.
+  - Price refunds from what was removed.
+  - Let legacy in-flight state finish on its old path.
+- **One rule, not a list of cases.** MODULE-TYPE filtered each proposal path, and MODULE-TYPE-2 still found routes past them. Check at the
+  point of acceptance.
+- **Tests must prove the property** (C11-C14):
+  - **Red again:** every failing-first row goes red again when its fix is reverted. The builder checks this before the early GPT review
+    and lists it in the report.
+  - **State, not logs:** assert saved state or the world, never a missing log line. Use a dev-only probe if needed, as B092-LEFT-2's
+    `/steward dev checks` does.
+  - **Bounded waits:** every wait has a bound, and a timeout or zero results is a FAIL. The sculpt stall waited 30+ minutes silently.
+- **Paths are hostile:**
+  - use realpath;
+  - compare case-insensitively;
+  - refuse symlinked or nested roots;
+  - prove ownership before deleting (E2E-DISK-2 to -5).
+- **GPT review prompts** include the "Known failure classes, check these first" block from `docs/REVIEW-PATTERNS.md`, after the goal and
+  the diff. The manager puts it in slice briefs.
+
 ## Speed rules
 
 The current set, shared with Architect (consolidated 2026-11-16, Noah via the parent session: "Yes, all three"). Old rule numbers are in
