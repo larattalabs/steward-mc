@@ -24,6 +24,7 @@ import { checkCommand, saveBarrier } from './lib/save-barrier.mjs';
 import { judgeSort } from './lib/hall-sort.mjs';
 import { overflowGrew } from './lib/overflow.mjs';
 import { drawsBetween, partsTotal, judgeQuote, lotsOff } from './lib/quote-draws.mjs';
+import { creditsOf, creditedSome, savedLedger, refundOnce, waterLeft, artifactSnapshot, artifactChanges, hallCap, capAnswer } from './lib/sculpt-halts.mjs';
 import { judgeUndoWorld, auditWords, crateBoxes, ALLOWED_CLASSES, rootProbes, addedBoxes } from './lib/undo-audit.mjs';
 import { acquire as acquireSlot, release as releaseSlot, inheritedSlot, slotsOff, runLanes, waitLine } from './lib/slot-queue.mjs';
 import { install as installShutdown, onStop, shuttingDownNow, stopPid, childExited, listenerPid, commandOf, pidRuns, waitFor } from './lib/shutdown.mjs';
@@ -3498,15 +3499,15 @@ async function composedSculptSurvivalFlow({ crash = false } = {}) {
     const CAP_FIELDS = ['maxBill', 'paid', 'regionCharged', 'drawn', 'overshoot'];
     const capOf = async (q) => {
       const r = await dev.request('dev.bc.cap', { region, rid: 0, ...q }, { timeoutMs: 30_000 }).catch((e) => ({ ok: false, error: String(e) }));
-      if (!r || r.ok === false) return { refused: `dev.bc.cap failed: ${r?.error ?? 'no answer'}` };
-      const missing = CAP_FIELDS.filter((k) => !(k in r) || (k !== 'maxBill' && (r[k] === null || typeof r[k] !== 'object')));
-      return missing.length ? { refused: `dev.bc.cap answer without ${missing.join(', ')}: ${JSON.stringify(r).slice(0, 200)}` } : r;
+      return capAnswer(r, CAP_FIELDS);
     };
     const sum = (o) => Object.values(o ?? {}).reduce((a, b) => a + b, 0);
     // an unclean halt (nothing saved since the last save) and a restart; the client's log before it kept
     // (B092-LEFT, GPT P1) the old client's log is read whole from this run's offset once its process has exited (nothing appended between two
     // reads is lost), before the next client starts a new one
-    const haltRestart = async (lbl) => {
+    // (B092-LEFT-2, GPT P1) atExit runs once the old client has exited, before the next one starts (and rewrites its saves): what the halt left
+    // on the disk
+    const haltRestart = async (lbl, atExit = null) => {
       await dev.request('dev.stockpile.halt', { mode: 'now' }, { timeoutMs: 10_000 }).catch(() => null);
       for (let i = 0; i < 120 && client.exitCode === null; i++) await sleep(1000);
       if (client.exitCode === null) { fail(lbl, 'dev.stockpile.halt did not halt the client in 120 s'); return false; }
@@ -3514,6 +3515,7 @@ async function composedSculptSurvivalFlow({ crash = false } = {}) {
       await sleep(4000);
       preHalt += logSince(at);
       at = 0;
+      if (atExit) atExit();
       launch();
       await connect();
       await cmd('/architect survival on');
@@ -3604,6 +3606,16 @@ async function composedSculptSurvivalFlow({ crash = false } = {}) {
     if (mode === 'carve' || mode === 'water') await dev.request('dev.placement.slow', { on: false }).catch(() => null);
     const since = said();
     if (mode && mode !== 'refund' && !halted) fail(`${label} halt mid-${mode}`, `never halted: the ${mode} never caught part way (region ${region})`);
+    // (B092-LEFT-2, GPT P1) water was left to write at the halt: the halted fluids stage's group and region (named in the log before the halt) not
+    // done nor its water written before it, and after the restart a terrain site placed, before that stage is placed, that was never placed before
+    // the halt (tools/lib/sculpt-halts.mjs waterLeft)
+    if (mode === 'water' && halted) {
+      const group = [...preHalt.matchAll(/Group (g\d+): stage fluids approved -> placing/g)].at(-1)?.[1] ?? null;
+      const rg = [...preHalt.matchAll(/Region (\S+): fluids stage checked/g)].at(-1)?.[1] ?? null;
+      const w = waterLeft({ preHalt, after: said().slice(preHalt.length), group, region: rg });
+      if (w.ok) ok(`${label} water left at the halt`, `group ${group} of ${rg}: ${w.why}`);
+      else return fail(`${label} water left at the halt`, `group ${group} of ${rg}: ${w.why}`);
+    }
     if (!built) return fail(label, `not built in 40 min; region ${region}; phase ${savedBuild(id)?.state?.phase}; ${since.split('\n').filter((l) => /CHAT/.test(l)).slice(-3).join(' | ').slice(0, 300)}`);
     const placed = await sculptChecks(label, id, since);
     if (!placed) return;
@@ -3621,11 +3633,12 @@ async function composedSculptSurvivalFlow({ crash = false } = {}) {
     {
       const lbl = `${label} hall cap`;
       const c = await capOf({ lot: 'storage_hall_1' });
-      const over = Object.entries(c?.lotCap?.drawn ?? {}).filter(([k, v]) => v > (c.lotCap.maxBill?.[k] ?? 0));
       const region0 = await capOf({});
-      if (c?.lotCap && Object.keys(c.lotCap.maxBill ?? {}).length && !over.length && !Object.keys(c.lotCap.overshoot ?? {}).length && !Object.keys(region0?.maxBill ?? {}).length)
+      // (B092-LEFT-2, GPT P2) a refused answer, the hall's or the region's, is never "no region maxBill"
+      const { ok: capOk, over } = hallCap(c, region0);
+      if (capOk)
         ok(lbl, `the hall drew ${sum(c.lotCap.drawn)} within its cap of ${sum(c.lotCap.maxBill)}; no region maxBill`);
-      else fail(lbl, `cap ${JSON.stringify(c).slice(0, 300)}; over ${JSON.stringify(over)}; region maxBill ${JSON.stringify(region0?.maxBill)}`);
+      else fail(lbl, `cap ${JSON.stringify(c).slice(0, 300)}; over ${JSON.stringify(over)}; region ${region0?.refused ? `refused: ${region0.refused}` : `maxBill ${JSON.stringify(region0?.maxBill)}`}`);
     }
     // conservation: the stockpile's loss is what the region's sites drew, item by item, the lining among it
     const spB = await ledger();
@@ -3675,7 +3688,7 @@ async function composedSculptSurvivalFlow({ crash = false } = {}) {
       // (B092-LEFT) the built town saved as an autosave would, then undone with jobs slowed, and halted once the stockpile has credited some of the
       // sites' refunds and before every paid site is credited. (GPT P1s) Each paid site's record (Architect's ledger, `paid` by key) is read
       // before the undo; the halt must leave at least one paid site uncredited; and across the halt every paid site is credited exactly what it
-      // consumed, once (a credit lost at the halt and made again after the restart counts once; a site credited twice after it, or never, fails)
+      // consumed, once. (B092-LEFT-2, GPT P1) Once judged against the ledger saved at the halt, never by what is credited again after it
       const lbl = `${label} halt mid-refund`;
       const bar = await saveBarrier(dev).then((x) => x.how, (e) => `failed: ${e?.message ?? e}`);
       if (/^failed/.test(bar)) return fail(lbl, `the built town couldn't be saved before the undo: ${bar}`);
@@ -3684,9 +3697,10 @@ async function composedSculptSurvivalFlow({ crash = false } = {}) {
         .filter(([, m]) => Object.keys(m).length));
       if (st0?.ok === false || !Object.keys(paidBy).length) return fail(lbl, `no paid site records before the undo: ${st0?.error ?? JSON.stringify(st0?.stockpile?.ledger ?? null).slice(0, 200)}`);
       await dev.request('dev.placement.slow', { on: true });
-      const creditRe = new RegExp(`Stockpile ${owner}: refund (\\S+) (returned \\{([^}]*)\\}|already credited)`, 'g');
-      const credits = (text) => [...text.matchAll(creditRe)].map((m) => ({ key: m[1], again: !m[3] && /already/.test(m[2]),
-        items: Object.fromEntries([...(m[3] ?? '').matchAll(/([a-z0-9_.:]+)=(\d+)/g)].map(([, k, n]) => [k, Number(n)])) }));
+      // (B092-LEFT-2, GPT P1/P2) a credit is a refund line that gave something back (an empty "returned {}" is none); whether it was kept is
+      // read from the ledger saved at the halt (Architect's stockpiles.json once the client exited), never inferred from what is made again
+      const credits = (text) => creditsOf(text, owner);
+      const stockFile = path.join(WORLD, 'architect', 'stockpiles.json');
       const doneRe = /Removal done of group g\d+/;
       const mark = said().length;
       await cmd(`/steward undo ${id}`);
@@ -3694,38 +3708,30 @@ async function composedSculptSurvivalFlow({ crash = false } = {}) {
       for (const until = Date.now() + 600_000; Date.now() < until;) {
         await sleep(100);
         const u = said().slice(mark);
-        seen = credits(u).filter((c) => !c.again && paidBy[c.key]);
+        seen = credits(u).filter((c) => creditedSome(c) && paidBy[c.key]);
         done = doneRe.test(u);
         if (seen.length > 0 || done) break;
       }
       if (done || !seen.length) return fail(lbl, `the removal ${done ? 'was done' : 'credited no paid site'} before the halt`);
-      if (!(await haltRestart(lbl))) return;
-      const atHalt = credits(preHalt.slice(mark)).filter((c) => !c.again);
+      let saved = null, savedErr = null;
+      if (!(await haltRestart(lbl, () => { try { saved = savedLedger(stockFile, owner); } catch (e) { savedErr = String(e?.message ?? e); } }))) return;
+      if (!saved) return fail(lbl, `the ledger saved at the halt couldn't be read: ${savedErr}`);
+      const atHalt = credits(preHalt.slice(mark));
       if (doneRe.test(preHalt.slice(mark))) return fail(lbl, `the removal finished before the client halted (${atHalt.length} credit(s))`);
-      const creditedAtHalt = new Set(atHalt.map((c) => c.key));
-      const owedAtHalt = Object.keys(paidBy).filter((k) => !creditedAtHalt.has(k));
-      if (!owedAtHalt.length) return fail(lbl, `every paid site (${Object.keys(paidBy).length}) was credited before the halt: nothing owed at it`);
+      const creditedBefore = atHalt.filter((c) => creditedSome(c) && paidBy[c.key]);
+      if (!creditedBefore.length) return fail(lbl, 'no paid site credited anything before the halt');
       const a = await dev.request('dev.stockpile.audit', { owner }, { timeoutMs: 120_000 }).catch((e) => ({ ok: false, error: String(e) }));
       // automatic recovery is required: the removal finishes after the restart with no second undo
       if (!(await removedBy(600_000))) return fail(lbl, `the undo didn't finish on its own after the restart (last op ${lastOp?.kind}); no second undo is sent`);
       await sleep(5000);
-      // per site: the credits after the restart, and before it those not made again (a credit made again was lost with the unsaved state)
+      // per paid site against the saved ledger (tools/lib/sculpt-halts.mjs refundOnce): credited there, exactly its record before the halt and
+      // nothing again after it; not credited there, exactly its record once after the restart
       const after = credits(logSince(0));
-      const madeAfter = after.filter((c) => !c.again);
-      const byKey = {};
-      for (const c of madeAfter) (byKey[c.key] ??= []).push(c.items);
-      for (const c of atHalt) if (!byKey[c.key]) (byKey[c.key] ??= []).push(c.items);
-      const off = [];
-      for (const [k, want] of Object.entries(paidBy)) {
-        const got = byKey[k] ?? [];
-        if (got.length !== 1) off.push(`${k} credited ${got.length} time(s)${madeAfter.filter((c) => c.key === k).length > 1 ? ' after the restart' : ''}`);
-        else if (!sameItems(got[0], want)) off.push(`${k} credited ${JSON.stringify(minusItems(got[0], want))} off what it consumed`);
-      }
-      for (const k of Object.keys(byKey)) if (!paidBy[k] && byKey[k].some((m) => Object.keys(m).length)) off.push(`${k} credited ${JSON.stringify(byKey[k])} with no paid record`);
-      const persisted = after.filter((c) => c.again).length;
-      if (a?.ok !== false && a.uncleanStart === true && !off.length)
-        ok(lbl, `halted uncleanly with ${atHalt.length} credit(s) made and ${owedAtHalt.length} of ${Object.keys(paidBy).length} paid site(s) still owed (e.g. ${owedAtHalt[0]}); after the restart the undo finished on its own; every paid site credited exactly what it consumed, once (${madeAfter.length} credited after the restart, ${persisted} already credited before it)`);
-      else return fail(lbl, `unclean ${a?.uncleanStart}${a?.ok === false ? ` (audit failed: ${a.error})` : ''}; per site: ${off.slice(0, 8).join('; ')}`);
+      const r = refundOnce({ paidBy, saved, before: atHalt, after });
+      if (!r.owed.length) return fail(lbl, `every paid site (${Object.keys(paidBy).length}) was credited in the ledger saved at the halt: nothing owed at it`);
+      if (a?.ok !== false && a.uncleanStart === true && !r.off.length)
+        ok(lbl, `halted uncleanly with ${creditedBefore.length} paid credit(s) made; the ledger saved at the halt: ${r.durable.length} credited, ${r.owed.length} of ${Object.keys(paidBy).length} paid site(s) still owed (e.g. ${r.owed[0]}); after the restart the undo finished on its own; every paid site credited exactly what it consumed, once (${after.filter((c) => creditedSome(c)).length} credited after the restart, ${after.filter((c) => c.again).length} already credited)`);
+      else return fail(lbl, `unclean ${a?.uncleanStart}${a?.ok === false ? ` (audit failed: ${a.error})` : ''}; per site: ${r.off.slice(0, 8).join('; ')}`);
     } else {
       await cmd(`/steward undo ${id}`);
       await removedBy(600_000);
@@ -3834,9 +3840,17 @@ async function composedSculptStaleFlow() {
     const pinBefore = await pinsOf(sha);
     // (B092-LEFT, GPT P1) Architect's artifact store as it stands before the approval: every artifact (<sha>.json) and pins file (<sha>.pins.json,
     // written at every pin and unpin) with its time, so any artifact made or any pin written while the stop is handled shows
+    // (B092-LEFT-2, GPT P1/P2) every file with its size, time and inode (tools/lib/sculpt-halts.mjs artifactSnapshot); a store that can't be read
+    // fails, never reads as an empty one
     const artDir = path.join(WORLD, 'architect-regions', 'artifacts');
-    const artFiles = () => { try { return Object.fromEntries(fs.readdirSync(artDir).map((n) => [n, fs.statSync(path.join(artDir, n)).mtimeMs])); } catch { return {}; } };
+    const artFiles = () => { try { return { files: artifactSnapshot(artDir) }; } catch (e) { return { error: String(e?.message ?? e) }; } };
     const art0 = artFiles();
+    if (art0.error || !Object.keys(art0.files).length) return fail(`${label} held`, `Architect's artifact store unreadable or empty before the approval: ${art0.error ?? 'no files'}`);
+    // (B092-LEFT-2, GPT P1) the plan checks this settlement entered (Composer.check, counted at its entry in a development environment:
+    // /steward dev checks) before the approval
+    const checksOf = async () => Number((await cmd(`/steward dev checks ${id}`)).match(new RegExp(`checks ${id} (\\d+)`))?.[1] ?? NaN);
+    const checks0 = await checksOf();
+    if (!Number.isInteger(checks0) || checks0 < 1) return fail(`${label} held`, `the plan checks entered before the approval: ${checks0} (the probe answers none, or this plan was never checked)`);
     from = logSize();
     const stopRe = /the land changed under the shaped site while its buildings were designed[^\n]*start the build again to plan the site anew/;
     // approved; the composed quote of a town from materials is inexact (natural cells may stand), so its bills are held and asked: approved too
@@ -3874,16 +3888,10 @@ async function composedSculptStaleFlow() {
       // Composer.check never ran: Architect logs "Plan check: read N volumes" for each check of this plan (its river reads volumes); none after
       // the stale answer (the positive control, that a check of this plan logs it, is the new Start's below)
       const checksAfter = staleAt < 0 ? -1 : (since.slice(staleAt).match(/\(architect\) Plan check: /g) ?? []).length;
-      // no artifact made and no pin written on any sha while the stop was handled, but the approved one's let go
-      const art1 = artFiles();
-      const madeArt = Object.keys(art1).filter((n) => /^[0-9a-f]{64}\.json$/.test(n) && !(n in art0));
-      const pinsWritten = Object.keys(art1).filter((n) => n.endsWith('.pins.json') && art1[n] !== art0[n]);
-      const pinsOwners = (n) => { try { return JSON.parse(fs.readFileSync(path.join(artDir, n), 'utf8')).owners ?? []; } catch { return null; } };
-      const pinsOk = Object.keys(art0).length > 0 && pinsWritten.every((n) => n === `${sha}.pins.json` && Array.isArray(pinsOwners(n)) && !pinsOwners(n).includes(owner));
       if (realises.length === 1 && realises[0][1] === sha && realises[0][2] === 'first' && others.length === 0 && quotesOk && checksAfter === 0
-        && !madeArt.length && pinsOk && pinBefore.includes(owner) && !pinAfter.includes(owner))
-        ok(lbl, `one realise of ${sha.slice(0, 12)} (refused stale) after ${approvals} approval(s); ${quotes.length} quote(s), all of it and before the realise, none after; no plan check after the stale answer; no artifact made; pins written: ${pinsWritten.join(', ') || 'none'} (its pin let go: ${pinBefore} -> ${pinAfter})`);
-      else fail(lbl, `realises ${realises.map((x) => `${x[1].slice(0, 8)} ${x[2]}`).join('; ')}; other plans ${others.length}; quotes ${quotes.map((q) => `${q[1].slice(0, 8)}@${q.index}`).join(',')} (realise @${realiseAt}, stale @${staleAt}, ok ${quotesOk}); plan checks after ${checksAfter}; made ${madeArt.join(',')}; pins written ${pinsWritten.map((n) => `${n.slice(0, 8)} ${JSON.stringify(pinsOwners(n))}`).join('; ')}; pins ${pinBefore} -> ${pinAfter}`);
+        && pinBefore.includes(owner) && !pinAfter.includes(owner))
+        ok(lbl, `one realise of ${sha.slice(0, 12)} (refused stale) after ${approvals} approval(s); ${quotes.length} quote(s), all of it and before the realise, none after; no plan check line after the stale answer (its pin let go: ${pinBefore} -> ${pinAfter})`);
+      else fail(lbl, `realises ${realises.map((x) => `${x[1].slice(0, 8)} ${x[2]}`).join('; ')}; other plans ${others.length}; quotes ${quotes.map((q) => `${q[1].slice(0, 8)}@${q.index}`).join(',')} (realise @${realiseAt}, stale @${staleAt}, ok ${quotesOk}); plan checks after ${checksAfter}; pins ${pinBefore} -> ${pinAfter}`);
     }
     // nothing drawn or charged: the stock and the consumed as before the approval, nothing owed
     const sp1 = await ledger();
@@ -3910,6 +3918,22 @@ async function composedSculptStaleFlow() {
         ok(lbl, `no region, no placed history, no stage placing; the claim's ${d.checked ?? 'boxed'} cells as they stood (phase ${b?.state?.phase ?? 'ended'})`);
       else fail(lbl, `region ${b?.vRegion}; placed ${placed.length}; stages ${regions.length}; phase ${b?.state?.phase}; ${d?.error ?? `${cells.length} cell(s) differ, e.g. ${cells.slice(0, 4).map((m) => `${m.pos} ${m.was} -> ${m.now} (${m.class})`).join('; ').slice(0, 300)}`}`);
     }
+    // (B092-LEFT-2, GPT P1) read as late as can be, once the stop and the checks above are done, just before the new Start: no plan check entered
+    // since the approval (the probe counts a check at its entry, a check that fails early or ends late among them), and in Architect's artifact
+    // store nothing added, removed or changed but the approved artifact let go (its pins file, its body swept to a tombstone): no artifact made,
+    // no other one pinned, unpinned or swept, whatever the sweep left (tools/lib/sculpt-halts.mjs artifactChanges)
+    const checks1 = await checksOf();
+    {
+      const lbl = `${label} nothing checked or pinned`;
+      const art1 = artFiles();
+      const changes = art1.error ? null : artifactChanges(art0.files, art1.files, sha);
+      const shaFiles = art1.error ? [] : Object.keys(art1.files).filter((n) => n.startsWith(sha));
+      let pinsNow = null;
+      try { pinsNow = shaFiles.includes(`${sha}.pins.json`) ? JSON.parse(fs.readFileSync(path.join(artDir, `${sha}.pins.json`), 'utf8')).owners ?? [] : []; } catch (e) { pinsNow = null; }
+      if (checks1 === checks0 && changes && !changes.length && Array.isArray(pinsNow) && !pinsNow.includes(owner))
+        ok(lbl, `plan checks entered ${checks0} -> ${checks1}; the artifact store (${Object.keys(art0.files).length} files before) changed only in the approved artifact's ${shaFiles.map((n) => n.slice(65)).join(', ') || 'files (all gone)'} (pins now ${JSON.stringify(pinsNow)})`);
+      else fail(lbl, `plan checks entered ${checks0} -> ${checks1}; store ${art1.error ? `unreadable: ${art1.error}` : `changes ${changes.slice(0, 8).map((c) => `${c.name.slice(0, 12)}..${c.name.slice(64)} ${c.how}`).join('; ') || 'none'}`}; approved artifact's pins ${JSON.stringify(pinsNow)}`);
+    }
     // the pillars down; a new Start plans the site anew (another artifact) and lays out from it, held at its placement approval
     for (const [x, z] of pillars) await cmd(`/fill ${x} -60 ${z} ${x} 300 ${z} minecraft:air replace minecraft:cobblestone`);
     pillars = [];
@@ -3927,9 +3951,11 @@ async function composedSculptStaleFlow() {
     const sha2 = since2.match(new RegExp(`plan of ${id}: artifact ([0-9a-f]{64})`))?.[1] ?? null;
     // the positive control for "no plan check after the stale answer": this plan's check logs Architect's "Plan check:" line
     const checks2 = (since2.match(/\(architect\) Plan check: /g) ?? []).length;
-    if (st2?.phase === 'AWAITING_PLACEMENT_APPROVAL' && sha2 && sha2 !== sha && /Laying out the village from its plan/.test(since2) && checks2 > 0)
-      ok(`${label} new start`, `planned anew: artifact ${sha2.slice(0, 12)} (was ${sha.slice(0, 12)}), ${checks2} plan check line(s) (the control), laid out from its plan, held at the placement approval`);
-    else fail(`${label} new start`, `phase ${st2?.phase}; artifact ${sha2} (was ${sha}); plan check lines ${checks2}; ${since2.split('\n').filter((l) => /CHAT/.test(l)).slice(-3).join(' | ').slice(0, 300)}`);
+    // (B092-LEFT-2) and the probe's control: the new Start's check counted
+    const entered2 = await checksOf();
+    if (st2?.phase === 'AWAITING_PLACEMENT_APPROVAL' && sha2 && sha2 !== sha && /Laying out the village from its plan/.test(since2) && checks2 > 0 && entered2 > checks1)
+      ok(`${label} new start`, `planned anew: artifact ${sha2.slice(0, 12)} (was ${sha.slice(0, 12)}), ${checks2} plan check line(s) and plan checks entered ${checks1} -> ${entered2} (the controls), laid out from its plan, held at the placement approval`);
+    else fail(`${label} new start`, `phase ${st2?.phase}; artifact ${sha2} (was ${sha}); plan check lines ${checks2}; plan checks entered ${checks1} -> ${entered2}; ${since2.split('\n').filter((l) => /CHAT/.test(l)).slice(-3).join(' | ').slice(0, 300)}`);
     await cmd(`/steward cancel ${id}`);
     await sleep(3000);
   } finally {
@@ -8538,7 +8564,8 @@ async function moduleCapFlow() {
     const region = /^region:(.+)$/.exec((st0?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1)?.siteGroup ?? '')?.[1];
     if (!region) return fail(label, 'the town is not a region');
     ok(`${label} town`, `${region} built from the stockpile (${town.placed} buildings)`);
-    const capOf = async (rid) => dev.request('dev.bc.cap', { region, ...(rid === undefined ? {} : { rid: Number(rid) }) }, { timeoutMs: 30_000 }).catch((e) => ({ refused: String(e) }));
+    // (B092-LEFT-2) a failed call ({ok: false}, not thrown) is a refusal too (tools/lib/sculpt-halts.mjs capAnswer)
+    const capOf = async (rid) => capAnswer(await dev.request('dev.bc.cap', { region, ...(rid === undefined ? {} : { rid: Number(rid) }) }, { timeoutMs: 30_000 }).catch((e) => ({ refused: String(e) })));
     const same = (a, b) => Object.keys({ ...a, ...b }).every((k) => (a?.[k] ?? 0) === (b?.[k] ?? 0));
     const sum = (o) => Object.values(o ?? {}).reduce((s, v) => s + v, 0);
     const needOf = (t) => Array.isArray(t?.nextNeeded) ? Object.fromEntries(t.nextNeeded.map((x) => [x.item ?? x.id, x.count])) : (t?.nextNeeded ?? {});
