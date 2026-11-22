@@ -109,9 +109,15 @@ origins are in `docs/archive/AGENTS-HISTORY.md`.
 **Batches and merges**
 
 9. **Batches of 4-6 ready slices** [11.3] (11-15: "Yes, apply all"), with one full merge suite on the combined result; bisect by slice on failure.
+   Since 11-22 (Noah: "1+2+3: all speed items"), batch runs use 3 clients: `--clients 3 --ports 9100,9102,9104 --stagger 120`.
+   - A batch with any strict slice runs the full stub.
+   - A light-only batch (no strict slice) runs `--fast`: the sanity set, one flow per risk area, and the flows its changes touch by file.
+     Add `--only` words for changes that touch only Java.
 10. **The batch merge** [11.4, 11.5, 15] (11-15: "Yes, apply all"; 11-16: "Review per strict slice"): the full merge suite (rule 9),
     then the strict gate-verifier on fresh runs of the strict flows (never a reused PASS: no `--skip-unchanged`), then the per-batch GPT
     review over the batch's strict diffs. Merge only after all three.
+    `--fast` never stands in for the merge suite of a batch with a strict slice; the gate-verifier rejects a summary with `tier: 'fast'`
+    there. A light-only batch merges on its `--fast` run alone: no verifier, no GPT review (rule 2).
 11. **Architect pins skip versions** [11.6] (11-15: "Yes, apply all"): bump the Architect pin every other release, or sooner when a slice needs
     it (QD on 0.73.0, INV and LUI on 0.74.0). A release in between gets a smoke check only: the sanity set plus one field round and billing.
 11b. **Module re-certification** [4, 11.6] (11-13: "yes, apply all of those"): re-certify a measured module at a new Architect pin only when its own code changes, or
@@ -129,6 +135,9 @@ origins are in `docs/archive/AGENTS-HISTORY.md`.
     - The shared slot queue is Architect's `../architect-mc/tools/slot.mjs` (its `docs/GATES.md`, "Outside callers (Steward)"). Steward's
       e2e takes its slots from it through `tools/lib/slot-queue.mjs` (one per client; the queue spaces starts by its 120 s settle).
       `E2E_SLOTS=off` takes no slot, and then the `--clients` stagger defaults to 60 s; pass `--stagger 120` either way.
+    - A 3-client batch holds 3 of the 6 slots, and the 23:00 nightly holds 2.
+    - The RAM disk stays 24 GB (11-22). Each client waits for `E2E_TMP_FLOOR_GIB` (6) GiB free on /Volumes/MCTmp before it starts, for
+      15 min at most, then FAILs. Each run empties its own sidecar dir there when it ends.
 13. **Ports** [12]: Steward's are in "Ports" below; Architect's slice, turbo and infra ranges are never Steward's.
 14. **Parallel slices** [14] (11-15: "More parallel slices"): the manager keeps 6-8 slices in progress where files and ports allow, and
     pre-briefs the next ones.
@@ -191,8 +200,10 @@ Noah, 2026-11-04 and 11-06; the history is in `docs/archive/AGENTS-HISTORY.md`.
 Steward uses only 8490-8491, 8590-8601 and 9100-9149 (Noah, 2026-11-15). Within those:
 
 - Dev client: 8490 (Architect sidecar) / 8491 (DevBridge); override with `STEWARD_PORT` / `STEWARD_DEV_PORT`.
-- E2e client: 8590 / 8591 (`tools/run-e2e-client.sh`).
-- Slices: 8592-8601 in pairs, assigned in the brief. `tools/module-measure.mjs` defaults to 8594/8595, `tools/module-measure-hall.mjs` to 8598/8599.
+- E2e client: 8590 / 8591 (`tools/run-e2e-client.sh`). The nightly's second client: 8600 / 8601 (since 11-22). A session holding
+  either pair at 23:00 makes the nightly skip.
+- Batch runs: 9100, 9102, 9104 (each with its +1).
+- Slices: 8592-8599 in pairs, assigned in the brief. `tools/module-measure.mjs` defaults to 8594/8595, `tools/module-measure-hall.mjs` to 8598/8599.
 - More slice pairs: 9100-9149, assigned the same way.
 - Architect's ranges (gate runners, slice blocks 8896-8939 and 9000-9099, turbo 8940-8999, infra 8912-8915): `../architect-mc/docs/GATES.md`, "Ports".
 
