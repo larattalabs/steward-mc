@@ -386,7 +386,8 @@ Without these flags a run is as before: one client on `mod/run`, every chosen fl
   - Each client has its own port pair (the sidecar port given, the DevBridge port one above), its own run dir (client 1 `mod/run`, client k
     `mod/run-c<k>-<tag>`, new each run, through `STEWARD_RUN_DIR` in build.gradle) with its own RAM-disk sidecar link, and its own evidence dir
     (`artifacts/e2e/c<k>/`: its client.log and summary).
-  - Each client is a child `e2e.mjs ... --flows a,b` that runs the sanity set and then exactly its flows, in that order. Its lines come prefixed
+  - Each client is a child `e2e.mjs ... --flows a,b` that runs the sanity set and then exactly its flows, in that order. (Since E2E-QUEUE
+    the clients take units from a shared queue instead: "The work queue" below.) Its lines come prefixed
     `[c1]`/`[c2]`. Each client starts once its slot comes, and the queue's settle (120 s) spaces them. `--stagger s` adds a gap of Steward's
     own (by default only with `E2E_SLOTS=off`: 60 s).
   - Flows are packed in groups, longest first, each onto the client with the least recorded seconds. A group holds a flow and what it `needs`,
@@ -480,6 +481,30 @@ Noah, 11-22: "1+2+3: all speed items", then items 5 and 6.
   `saves/Steward E2E <tag>/steward-sidecar-evidence/`, which the kept world's delete note covers.
   - The 11-22 incident (38 MiB free, 19 GiB under `tmp/steward`) was mostly live runs at once: on a normal end every dir was already empty
     (95 empty `sidecar-*` dirs, one live 2.4 GiB). The floor is what keeps concurrent runs from filling it.
+
+#### The work queue (slice E2E-QUEUE, 2026-11-22, $0)
+
+Lanes packed up front came out lopsided: per-flow times swing about 40% with load and order (b096 predicted 4659 s and 4658 s, ran c1
+6563 s against c2 3183 s; survival-mech took 441 s on a 132 s baseline). Now a `--clients` run's clients take work from one queue.
+
+- **Units** are groupFlows' groups (a flow with what it `needs`, flows sharing a snapshot block such as the composed and gate-mech families),
+  each run whole, in order, on one client. The queue holds them **longest first** by recorded seconds (`orderUnits`, `tools/lib/e2e-queue.mjs`),
+  untimed units last.
+- **One child per client, kept up across units.** Each child is `e2e.mjs <mode> --queue` (it replaces `--flows`): its slot, RAM floor, launch
+  and sanity set as before, then it asks the lead for a unit over Node's IPC channel, runs it, says it is done (with that unit's rows) and asks
+  again, until the lead answers `end`; then the restart check and its exit. A child per unit would pay about 4 min of launch, sanity set and
+  restart per unit. The lead hands out units from one event loop, so no unit is handed out twice.
+- **Bounded, and nothing skipped silently** (`laneSession`): a child that asks for nothing within 40 min of its spawn, a unit past 4x its
+  recorded seconds (at least 20 min; an untimed one 60 min), or a child not ended 20 min after its last unit is stopped by pid (driver, JVM,
+  launcher). Its running unit FAILs as `queue <flow>` per flow (and drops those flows' PASS), and the rest go on to the other clients. A child
+  that ends mid-unit fails that unit the same way. Units left when every client is gone FAIL as never run. A unit said done whose flows have no
+  row in the child's summary FAILs. A child killed before writing its summary is merged from the rows it sent with each finished unit.
+- A further client whose turn comes with the queue empty isn't started (`clients[]` says `idle`). A lane whose slot doesn't come still runs
+  after c1 on c1's slot, if units are left by then.
+- **`--plan`** prints the queue and a greedy simulation (each client ready after the stagger and `LANE_OVERHEAD_S`, taking the next unit when
+  free). The `client cK (ports, dir): ~Ns recorded` lines the nightly's `--dry` reads are kept, with each client's simulated seconds. On the
+  baseline a full stub projects about **81 min on 2 clients and 57 on 3** (9177 s of flows, 62 units).
+- `summary.json`'s `clients[]` gives each client's `flows` and `units` as run (id, status, seconds), `packedSeconds` their recorded seconds.
 
 ## lab-ui
 
