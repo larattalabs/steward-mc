@@ -74,6 +74,24 @@ every 60 s, 10 times, then said once (`SettlementRunner.heldStep`). The undo hel
   - the finishedBy match and the typed busy kept, the held cancel's bound (on 367e40ce);
   - the 7b ground, guard, placer-filter and restart judges.
 
+## GPT review (rule 4)
+- **Early review:** NOT SAFE, 3 P1 (`artifacts/t4r-pin/gpt.log`), each checked in code before fixing (rule 5):
+  - P1-1: a stage's REMOVAL_FINISHED was taken as its whole group's (handle dropped the stage);
+  - P1-2: the group and site-by-site undo went on after their intent note failed to save;
+  - P1-3: an untyped busy update was released by any unrelated removal's end, past its retry bound.
+- **One fix round** (25b0fda7):
+  - a stage event is `doneKind stage`;
+  - no undo without its saved intent;
+  - finishedBy or the timer only.
+  - P2s also fixed: the preview words, the growth watcher while held, the road line's own id, an empty chat capture failing.
+  - Red-again for each: stageEvidence, intentAbortGroup, intentAbortChain, unmatchedTimerOnly, heldWordsEmpty.
+- **Final pass: SAFE** (`gpt2.log`). Three P2s left:
+  - the unrecorded road's `why` prefix (Districts, from main) still names the road id;
+  - the T4 words judge passes on unrelated chat only;
+  - the preview wording is tested by classification, not through `Updates.refresh`.
+- **Kept on purpose:** the village (region) undo still goes on when its intent fails to save (main's SD2 decision, batch review 3). The
+  final pass judged it not a P1.
+
 ## T4S-PRE's "at T4c" list
 1. The adapter in `RemovalEnds.init`: done (owedParts from the event, not `Sites.owed` keys).
 2. Owed from the result: done for `Undo.growth`'s refund line and `takeUpEmpty`'s `notPlacedNote`; the e2e conservation sums (OVF-S3) are TXN-S.
