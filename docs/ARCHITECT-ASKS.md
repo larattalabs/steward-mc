@@ -1881,3 +1881,29 @@ takes everything a module lot needs (plan/0 `lot.size`, `irrigate`, `field`, `ex
 - **Ask:** a growth's take-up (`Regions.undoRevision`) left UNDOING with a wait has no typed cause: `RevisionView.waiting` and `RemoveResult.blockers`
   are text, and a refused save's names chunk files. Could `RevisionView` carry the stop's `RemovalStopCause` as `RegionView` does?
 - **Steward meanwhile:** with the phrase test gone, the waiting line says the change waits to carry on without naming why (no Architect text shown).
+
+### B092L-1: an orphaned `placing` terrain site after a mid-carve halt blocks the fluids stage (slice B092-LEFT, 2026-11-21; sent 17:35)
+
+- **Found:** Steward's `composed-sculpt-crash-carve` flow halts the client uncleanly during a region's forms stage (the river's carve, placement
+  slowed) and restarts. In 1 of 3 runs on 0.89.0 the region never finished: `architect-sites.json` kept terrain site c46 (tile forms|56,1547, part
+  river) saved with `"placing": true`; after the restart the same tile was placed again as c49 and built; every forms queue item was PLACED, all 12
+  fluids items stayed QUEUED and `region.json` showed forms at 10 of 12 tiles. The fluids stage waited on the orphan with no held stage offered, and
+  Steward repeated the wait ("The River waits for the River to be built") for 30+ minutes. The world is kept in `_work/steward-b092-left/mod/run/saves/`
+  ("Steward E2E mwr1oad6_147my8c1").
+- **Ask:** on startup reconcile, resolve a `placing` site whose placement never completed or whose tile was placed again (drop it, or restore and
+  retire it), so stage completion counts the tile once. A failing-first row on Architect's side (halt mid-forms, restart, the stage completes).
+- **Steward meanwhile:** the flow is nightly-only (Noah via parent, 11-21); every crash flow fails after 5 minutes without progress, naming the open
+  queue items.
+
+### T4RD: Steward's review of T4R-D (player blocks owed, cascade ownership, admission; 2026-11-21, revisions 1-3)
+
+- **Review:** `steward-T4R-D-review.md` in the parent's notes folder. Verdict accept with changes, no design P1; sent to the coordinator.
+- **Asks, folded into revision 3:** A7 typed busy detail (`ArchitectRefused.busy()`: REMOVAL_IN_PROGRESS, WAITING_BEHIND, PLAYER_BLOCKS_RETURNING,
+  HELD_DECIDED, with the blocking removal's id, kind and owner), `RemovalStopCause.WAITING_BEHIND` and `removalWait()` on SiteGroup, RegionView and
+  RevisionView, the SITE_BUSY call list (§8.2); P2-6 the wait counter counts only stalled checks; A2 HELD_DECIDED; A3 dev views; A5 the site title in
+  the auto-collect line; Q1 a settlement's non-player-tracked blocks stay owed; Q8 `Sites.removalResult(kind, id)` with `revision:<region>#<rid>`;
+  four test rows.
+- **Asked on revision 3 (open):** confirm the up-front SITE_BUSY refusal comes before any pin, quote or charge; an action-bar hint when a player uses a
+  held cell; say what the one-block margin's popped attached blocks are (owed under D1, or vanilla drops of non-site blocks).
+- **Steward's side (T4RD-S, at the pin that brings T4R):** module-measure bar 7b reads `owedParts` (nothing on the ground) before crop_farm's smoke
+  carry; owed lines from `owedParts`; wording for the 12 "Not yet" paths by `busy()`; an update or revert refused as busy is not recorded as failed.

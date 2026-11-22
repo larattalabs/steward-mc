@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { drawsBetween, quoteOff, partsTotal, mayStand, judgeQuote } from '../tools/lib/quote-draws.mjs';
+import { drawsBetween, quoteOff, partsTotal, mayStand, judgeQuote, lotsOff } from '../tools/lib/quote-draws.mjs';
 
 const bom = { 'minecraft:clay': 2393, 'minecraft:mud': 1190, 'minecraft:moss_block': 658, 'minecraft:stone_bricks': 8 };
 
@@ -67,4 +67,33 @@ test('an exact quote: every item exactly as quoted', () => {
   assert.deepEqual(judgeQuote(quote, { 'minecraft:clay': 10 }), { fails: [], short: [] });
   assert.deepEqual(judgeQuote(quote, { 'minecraft:clay': 9 }).fails, ['minecraft:clay drew 9/quoted 10']);
   assert.deepEqual(judgeQuote(quote, { 'minecraft:clay': 10, 'minecraft:dirt': 1 }).fails, ['minecraft:dirt drew 1/quoted 0']);
+});
+
+// (B092-LEFT, batch 092 GPT review P2) the composed quote may cover lots the realise later filters out (fitting, palette) under the same sha: the
+// quote's lot and fill pieces must be exactly the realise's entries, so a quoted-but-unrealised lot fails the check
+const ENTRIES = { storage_hall_1: 'storage_hall_kv', shop_4: 'gen_mossy_and_crooked_shop', house_1: 'gen_mossy_and_crooked_house' };
+const QPARTS = { 'tiles:river': { 'minecraft:clay': 1 }, 'tiles:town': { 'minecraft:dirt': 3 }, 'road:street_e': { 'minecraft:lantern': 2 },
+  'lot:storage_hall_1': { 'minecraft:chest': 26 }, 'fill:storage_hall_1': { 'minecraft:wheat': 4 }, 'lot:shop_4': { 'minecraft:oak_planks': 90 },
+  'lot:house_1': { 'minecraft:oak_planks': 40 } };
+
+test('the quote\'s lots are exactly the realise\'s entries: no mismatch', () => {
+  assert.deepEqual(lotsOff(QPARTS, ENTRIES), []);
+});
+
+test('a lot quoted but left out of the realise (a design filtered as a pad) fails', () => {
+  const { shop_4: _, ...realised } = ENTRIES;
+  assert.deepEqual(lotsOff(QPARTS, realised), ['lot:shop_4 quoted, not in the realise']);
+  const { storage_hall_1: __, ...noHall } = ENTRIES;
+  assert.deepEqual(lotsOff(QPARTS, noHall), ['fill:storage_hall_1 quoted, not in the realise', 'lot:storage_hall_1 quoted, not in the realise']);
+});
+
+test('a lot realised but never quoted fails; a fill alone is no quote of its lot', () => {
+  assert.deepEqual(lotsOff(QPARTS, { ...ENTRIES, well_2: 'gen_well' }), ['lot:well_2 realised, never quoted']);
+  const { 'lot:storage_hall_1': _, ...fillOnly } = QPARTS;
+  assert.deepEqual(lotsOff(fillOnly, ENTRIES), ['lot:storage_hall_1 realised, never quoted']);
+});
+
+test('no quote or no entries: every side named', () => {
+  assert.deepEqual(lotsOff(null, { a_1: 'x' }), ['lot:a_1 realised, never quoted']);
+  assert.deepEqual(lotsOff({ 'lot:a_1': { 'minecraft:dirt': 1 } }, null), ['lot:a_1 quoted, not in the realise']);
 });

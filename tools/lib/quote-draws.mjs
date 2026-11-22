@@ -72,3 +72,23 @@ export function judgeQuote(quote, drew, exact = []) {
   }
   return { fails, short };
 }
+
+/**
+ * (B092-LEFT, batch 092 GPT review P2) The quote's lots against the realise's entries ({lot: entry}, as logged with the realise sent): Steward quotes
+ * the composed town before the realise drops a design that doesn't fit its lot or breaks a palette rule (left a pad), under the same artifact. Every
+ * lot-scoped piece of the quote (`lot:<id>`, `fill:<id>`) must name a lot the realise binds, and every lot the realise binds must have its own
+ * `lot:<id>` piece (a fill alone doesn't quote its lot). -> the mismatches, sorted; [] when they agree.
+ */
+export function lotsOff(bomParts, entries) {
+  const bound = new Set(Object.keys(entries ?? {}));
+  const quotedLots = new Set();
+  const out = [];
+  for (const piece of Object.keys(bomParts ?? {})) {
+    const m = /^(lot|fill):(.+)$/.exec(piece);
+    if (!m) continue;
+    if (m[1] === 'lot') quotedLots.add(m[2]);
+    if (!bound.has(m[2])) out.push(`${piece} quoted, not in the realise`);
+  }
+  for (const lot of bound) if (!quotedLots.has(lot)) out.push(`lot:${lot} realised, never quoted`);
+  return out.sort();
+}
