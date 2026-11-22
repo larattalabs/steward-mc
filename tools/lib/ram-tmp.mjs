@@ -29,16 +29,22 @@ const ramUp = (env, root) => env.STEWARD_RAM_TMP !== '0' && (() => { try { fs.ac
  * disk and a reboot wiped that dir, so Architect's launcher throws FileAlreadyExistsException on the dangling link and the sidecar never starts.
  * Every tool that launches a client on a game dir calls it first (ramSidecarData does for the e2e). When the volume is up and the link points
  * under root, its target is made again, empty (the data stays on the RAM disk); otherwise the link is replaced by an empty directory. A live
- * link, a real directory or a missing path is left as it is. Returns 'relinked' | 'replaced' | null (nothing to repair).
+ * link (to a directory), a real directory or a missing path is left as it is. Returns 'relinked' | 'replaced' | null (nothing to repair).
+ *
+ * (E2E-DISK-5) A target that is there but isn't a directory (a plain file, or a symlink: dangling, or into a chain the launcher can't use) is
+ * never touched, it isn't Steward's: the link is replaced by an empty directory instead. A link to a file counts as broken too.
  */
 export function repairSidecarData(gameDir, env = process.env, root = RAM_TMP) {
   const link = path.join(gameDir, 'architect', 'sidecar-data');
   let st = null;
   try { st = fs.lstatSync(link); } catch { return null; }
-  if (!st.isSymbolicLink() || fs.existsSync(link)) return null;
+  if (!st.isSymbolicLink()) return null;
+  try { if (fs.statSync(link).isDirectory()) return null; } catch {}
   const target = path.resolve(path.dirname(link), fs.readlinkSync(link));
   const rel = path.relative(path.resolve(root), target);
-  if (ramUp(env, root) && rel && !rel.startsWith('..') && !path.isAbsolute(rel)) {
+  let there = true;
+  try { fs.lstatSync(target); } catch { there = false; }
+  if (!there && ramUp(env, root) && rel && !rel.startsWith('..') && !path.isAbsolute(rel)) {
     fs.mkdirSync(target, { recursive: true });
     return 'relinked';
   }
@@ -71,7 +77,7 @@ export function ramSidecarData(gameDir, env = process.env, root = RAM_TMP, { fre
   const up = ramUp(env, root);
   if (!up) {
     let made = false;
-    if (st?.isSymbolicLink() && !fs.existsSync(link)) made = repairSidecarData(gameDir, env, root) === 'replaced';
+    if (st?.isSymbolicLink()) made = repairSidecarData(gameDir, env, root) === 'replaced';
     else if (!st) { fs.mkdirSync(link); made = true; }
     else if (own && st.isDirectory()) {
       // an earlier run's own dir, left by a hard kill: it is Steward's to take again

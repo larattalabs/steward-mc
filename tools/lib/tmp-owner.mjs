@@ -155,7 +155,8 @@ export function removeOwned(dir, { link = null, primary = owned.get(dir)?.primar
       try { markOwner(dir); } catch {}
       return 'failed';
     }
-    if (link) (primary ? repoint(link, dir, primary) : relink(link, dir));
+    // (E2E-DISK-5) a primary that isn't a real dir (a file, a symlink): the fallback is made again empty instead, so the link never dangles
+    if (link && !(primary && repoint(link, dir, primary))) relink(link, dir);
     return 'removed';
   } catch {
     try { if (fs.existsSync(dir)) markOwner(dir); } catch {}
@@ -175,19 +176,27 @@ function relink(link, dir) {
 /**
  * (E2E-DISK-4) A fallback dir (`sidecar-<hash>-XXXXXX`, taken because the game dir's own held kept or a dev client's data) isn't made again: made
  * again empty, one per run, they piled up. The link, when it still points at exactly dir, goes back to the game dir's own dir (`primary`, where it
- * pointed before the run; made when absent), swapped in by a rename so it is never missing.
+ * pointed before the run; made when absent), swapped in by a rename so it is never missing. -> true when the link is fine as it is (repointed, or no
+ * longer this dir's); false when it still points at dir because primary isn't a real directory (E2E-DISK-5: a plain file, a symlink, dangling or
+ * not), which is never touched: it isn't Steward's to replace. The caller then makes dir again (relink), so the link doesn't dangle.
  */
 function repoint(link, dir, primary) {
   try {
-    if (!fs.lstatSync(link).isSymbolicLink() || fs.readlinkSync(link) !== dir) return;
-    fs.mkdirSync(primary, { recursive: true });
-    if (!fs.lstatSync(primary).isDirectory()) return;
+    if (!fs.lstatSync(link).isSymbolicLink() || fs.readlinkSync(link) !== dir) return true;
+    let st = null;
+    try { st = fs.lstatSync(primary); } catch {}
+    if (!st) {
+      fs.mkdirSync(primary, { recursive: true });
+      st = fs.lstatSync(primary);
+    }
+    if (!st.isDirectory()) return false;
     const tmp = `${link}.repoint-${process.pid}`;
     try { fs.unlinkSync(tmp); } catch {}
     fs.symlinkSync(primary, tmp);
     fs.renameSync(tmp, link);
+    return true;
   } catch {
-    // left as it is: a dangling link is repaired at the next launch (repairSidecarData)
+    return false;
   }
 }
 

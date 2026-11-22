@@ -119,3 +119,33 @@ test('a live sidecar-data link, a real directory and a missing path are left alo
   assert.equal(repairSidecarData(none, {}, root), null);
   assert.ok(!fs.existsSync(path.join(none, 'architect')));
 });
+
+test('(E2E-DISK-5) a link to a target that is there but not a directory is replaced by an empty directory; the target is left', () => {
+  const root = tmpRoot();
+  fs.mkdirSync(path.join(root, 'steward'));
+  // a dangling link to a dangling symlink under root (mkdir -p on it throws ENOENT)
+  const g1 = tmpRoot(), l1 = sidecarLink(g1), t1 = path.join(root, 'steward', 'sidecar-dl');
+  fs.symlinkSync(path.join(root, 'nowhere'), t1);
+  fs.symlinkSync(t1, l1);
+  assert.equal(repairSidecarData(g1, {}, root), 'replaced');
+  assert.ok(fs.lstatSync(l1).isDirectory() && !fs.lstatSync(l1).isSymbolicLink());
+  assert.equal(fs.readlinkSync(t1), path.join(root, 'nowhere'), 'the symlink left');
+  // a link to a plain file under root (mkdir -p on it throws EEXIST)
+  const g2 = tmpRoot(), l2 = sidecarLink(g2), t2 = path.join(root, 'steward', 'sidecar-file');
+  fs.writeFileSync(t2, 'theirs');
+  fs.symlinkSync(t2, l2);
+  assert.equal(repairSidecarData(g2, {}, root), 'replaced');
+  assert.ok(fs.lstatSync(l2).isDirectory());
+  assert.equal(fs.readFileSync(t2, 'utf8'), 'theirs', 'the file left');
+  // with the volume down, ramSidecarData repairs a link to a file the same way
+  const g3 = tmpRoot(), l3 = sidecarLink(g3);
+  fs.symlinkSync(t2, l3);
+  assert.equal(ramSidecarData(g3, {}, '/nonexistent/MCTmp/tmp').mode, 'disk');
+  assert.ok(fs.lstatSync(l3).isDirectory());
+  // a link through a symlink to a real directory is live: left
+  const g4 = tmpRoot(), l4 = sidecarLink(g4), real = tmpRoot(), t4 = path.join(root, 'steward', 'sidecar-chain');
+  fs.symlinkSync(real, t4);
+  fs.symlinkSync(t4, l4);
+  assert.equal(repairSidecarData(g4, {}, root), null);
+  assert.equal(fs.readlinkSync(l4), t4);
+});
