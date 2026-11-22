@@ -3918,7 +3918,10 @@ async function composedSculptStaleFlow() {
         ok(lbl, `no region, no placed history, no stage placing; the claim's ${d.checked ?? 'boxed'} cells as they stood (phase ${b?.state?.phase ?? 'ended'})`);
       else fail(lbl, `region ${b?.vRegion}; placed ${placed.length}; stages ${regions.length}; phase ${b?.state?.phase}; ${d?.error ?? `${cells.length} cell(s) differ, e.g. ${cells.slice(0, 4).map((m) => `${m.pos} ${m.was} -> ${m.now} (${m.class})`).join('; ').slice(0, 300)}`}`);
     }
-    // (B092-LEFT-2, GPT P1) read as late as can be, once the stop and the checks above are done, just before the new Start: no plan check entered
+    // the pillars down; a new Start plans the site anew (another artifact) and lays out from it, held at its placement approval
+    for (const [x, z] of pillars) await cmd(`/fill ${x} -60 ${z} ${x} 300 ${z} minecraft:air replace minecraft:cobblestone`);
+    pillars = [];
+    // (B092-LEFT-2, GPT P1; its early review P1) read as late as can be, the pillars down, immediately before the new Start: no plan check entered
     // since the approval (the probe counts a check at its entry, a check that fails early or ends late among them), and in Architect's artifact
     // store nothing added, removed or changed but the approved artifact let go (its pins file, its body swept to a tombstone): no artifact made,
     // no other one pinned, unpinned or swept, whatever the sweep left (tools/lib/sculpt-halts.mjs artifactChanges)
@@ -3931,12 +3934,9 @@ async function composedSculptStaleFlow() {
       let pinsNow = null;
       try { pinsNow = shaFiles.includes(`${sha}.pins.json`) ? JSON.parse(fs.readFileSync(path.join(artDir, `${sha}.pins.json`), 'utf8')).owners ?? [] : []; } catch (e) { pinsNow = null; }
       if (checks1 === checks0 && changes && !changes.length && Array.isArray(pinsNow) && !pinsNow.includes(owner))
-        ok(lbl, `plan checks entered ${checks0} -> ${checks1}; the artifact store (${Object.keys(art0.files).length} files before) changed only in the approved artifact's ${shaFiles.map((n) => n.slice(65)).join(', ') || 'files (all gone)'} (pins now ${JSON.stringify(pinsNow)})`);
+        ok(lbl, `plan checks entered ${checks0} -> ${checks1}; the artifact store (${Object.keys(art0.files).length} files before) changed only by the approved artifact let go (its files now: ${shaFiles.map((n) => n.slice(65)).join(', ') || 'none'}; pins ${JSON.stringify(pinsNow)})`);
       else fail(lbl, `plan checks entered ${checks0} -> ${checks1}; store ${art1.error ? `unreadable: ${art1.error}` : `changes ${changes.slice(0, 8).map((c) => `${c.name.slice(0, 12)}..${c.name.slice(64)} ${c.how}`).join('; ') || 'none'}`}; approved artifact's pins ${JSON.stringify(pinsNow)}`);
     }
-    // the pillars down; a new Start plans the site anew (another artifact) and lays out from it, held at its placement approval
-    for (const [x, z] of pillars) await cmd(`/fill ${x} -60 ${z} ${x} 300 ${z} minecraft:air replace minecraft:cobblestone`);
-    pillars = [];
     from = logSize();
     await cmd(`/steward start ${id} 3 30`);
     let st2 = null;
@@ -3951,9 +3951,10 @@ async function composedSculptStaleFlow() {
     const sha2 = since2.match(new RegExp(`plan of ${id}: artifact ([0-9a-f]{64})`))?.[1] ?? null;
     // the positive control for "no plan check after the stale answer": this plan's check logs Architect's "Plan check:" line
     const checks2 = (since2.match(/\(architect\) Plan check: /g) ?? []).length;
-    // (B092-LEFT-2) and the probe's control: the new Start's check counted
+    // (B092-LEFT-2, its early review P1) and the probe's control: the new Start's one check counted, and nothing more (a late check of the stale
+    // path, logged or failing early, would make two)
     const entered2 = await checksOf();
-    if (st2?.phase === 'AWAITING_PLACEMENT_APPROVAL' && sha2 && sha2 !== sha && /Laying out the village from its plan/.test(since2) && checks2 > 0 && entered2 > checks1)
+    if (st2?.phase === 'AWAITING_PLACEMENT_APPROVAL' && sha2 && sha2 !== sha && /Laying out the village from its plan/.test(since2) && checks2 === 1 && entered2 === checks1 + 1)
       ok(`${label} new start`, `planned anew: artifact ${sha2.slice(0, 12)} (was ${sha.slice(0, 12)}), ${checks2} plan check line(s) and plan checks entered ${checks1} -> ${entered2} (the controls), laid out from its plan, held at the placement approval`);
     else fail(`${label} new start`, `phase ${st2?.phase}; artifact ${sha2} (was ${sha}); plan check lines ${checks2}; plan checks entered ${checks1} -> ${entered2}; ${since2.split('\n').filter((l) => /CHAT/.test(l)).slice(-3).join(' | ').slice(0, 300)}`);
     await cmd(`/steward cancel ${id}`);
