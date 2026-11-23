@@ -74,6 +74,24 @@ every 60 s, 10 times, then said once (`SettlementRunner.heldStep`). The undo hel
   - the finishedBy match and the typed busy kept, the held cancel's bound (on 367e40ce);
   - the 7b ground, guard, placer-filter and restart judges.
 
+## In game (RC 367e40ce, $0, ports 9126/9128)
+- **e2e `stub --only undo,revert,update,district,survival --clients 2`:** 201/224.
+  - 21 of the 23 misses are the module certificate gate. crop_farm and storage_hall are measured on 0.89.0 and the RC reports 0.90.0, so
+    there are no module offers, no module quotes, and the halls are left out (as RC-088 had). The queue's unit bound stopped
+    composed-modules-restart.
+  - The other 2 were the T4 words row reading Architect's own `Txn event: tx-9` log line: a judge bug, now chat-only.
+  - The rerun `--only supplied-growth`: 27/27.
+- **After the GPT fix round:** `--only undo,revert,update,supplied-growth --clients 2`: 146/155. All 9 misses are the same certificate gate.
+- **Bar 7b** (`module-measure.mjs survival`): 57/57.
+  - The placer is owed exactly its replants, cobblestone and torch per growth, with nothing on the ground; after the restart its owed
+    entries are unchanged.
+  - The first run was 54/57: Architect's `dev.rv.undo` doesn't serialize `owedParts` (SliceRvDev, despite STEWARD-SYNC's A3 line). The judge
+    now falls back to the placer's owed store (`dev.stockpile.owed`) across each undo, S-1's stated alternative, and still fails with neither.
+- **Hall tool:** `survival` 26/26; `sort-crash --version 2` 68/68, with the T4 rows on (FKC1 custody on disk at the halt, FKC2, re-undo
+  NOT_ALLOWED, nothing given twice).
+- **Not run:** the crop_farm smoke carry's `record --smoke`, which needs the pin's module.json kit pins. Its other steps (offline, ingame,
+  bounds, field) are left for the pin.
+
 ## GPT review (rule 4)
 - **Early review:** NOT SAFE, 3 P1 (`artifacts/t4r-pin/gpt.log`), each checked in code before fixing (rule 5):
   - P1-1: a stage's REMOVAL_FINISHED was taken as its whole group's (handle dropped the stage);
@@ -102,6 +120,8 @@ every 60 s, 10 times, then said once (`SettlementRunner.heldStep`). The undo hel
    `tools/lib/t4-rows.mjs` (point it at `dev.stockpile.ledger` `custody[].onDisk`), and the held-group e2e row needs a T4 hold hook: both Left.
 
 ## Left
+- **Architect ask:** `dev.rv.undo` should return `refund`, `owed` and `owedParts`, as STEWARD-SYNC's A3 line says. Then bar 7b reads the
+  undo's own parts.
 - **At the real pin:**
   - bump `architect_version` (and the Fabric range) to the release;
   - build the RC run jar (with the sidecar) from the post-fix head;
