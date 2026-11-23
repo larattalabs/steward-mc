@@ -1922,3 +1922,6 @@ takes everything a module lot needs (plan/0 `lot.size`, `irrigate`, `field`, `ex
   held cell; say what the one-block margin's popped attached blocks are (owed under D1, or vanilla drops of non-site blocks).
 - **Steward's side (T4RD-S, at the pin that brings T4R):** module-measure bar 7b reads `owedParts` (nothing on the ground) before crop_farm's smoke
   carry; owed lines from `owedParts`; wording for the 12 "Not yet" paths by `busy()`; an update or revert refused as busy is not recorded as failed.
+- **Asked at T4R-PIN (11-22, on slice/T4R 367e40ce):** `dev.rv.undo` should return `refund`, `owed` and `owedParts`, as STEWARD-SYNC's A3 line
+  says. It returns none of them, so module-measure bar 7b falls back to the placer's owed store across each undo (the alternative S-1 allows).
+  Dev-only; not blocking the v0.91.0 pin.
