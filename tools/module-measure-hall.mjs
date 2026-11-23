@@ -1055,10 +1055,10 @@ async function sortStep() {
         const opens = above.every((b) => b === 'minecraft:air' || b === 'minecraft:cave_air' || /slab$/.test(b ?? ''));
         const fk = await call('dev.fk.state', { site: h.siteId }, 30_000).catch((e) => ({ error: String(e) }));
         out.halls[h.id] = { slots: h.slots, bulk: h.bulk, bible: h.bible, items: h.items, front: h.frame.front, built: row, fk: { phase: fk.phase, locks: fk.locks } };
-        // Architect's land check reads a container written empty that holds items now as changed (StillOurs.holds), so each filled F is one
-        // changed cell (S-M5-18): changed is exactly the slots' F cells, each holding exactly the fill (fOk)
-        check(row?.changed === h.slots && row?.standing === 1 && fOk && leverOk && opens && fk.phase === 'UNLOCKED' && (fk.locks ?? []).every((l) => /powered=false/.test(l.state ?? '')),
-          `12.5 bar 6 shape ${h.id} (${h.bible}, ${h.slots} slots, front ${h.frame.front}): standing ${row?.standing}, changed ${row?.changed} (the ${h.slots} filled Fs); every F exactly 41 + 4 slabs (${fOk}); FK ${fk.phase}, the lever unlocked; nothing conductive over any chest (${opens})`);
+        // (M4b-074) since Architect FL (0.91.0, S-M5-18 fixed) the land check reads a filled F within its fill as SAME: changed 0, each F holding
+        // exactly the fill (fOk)
+        check(row?.changed === 0 && row?.standing === 1 && fOk && leverOk && opens && fk.phase === 'UNLOCKED' && (fk.locks ?? []).every((l) => /powered=false/.test(l.state ?? '')),
+          `12.5 bar 6 shape ${h.id} (${h.bible}, ${h.slots} slots, front ${h.frame.front}): standing ${row?.standing}, changed ${row?.changed} (0: FL reads a filled F within its fill as SAME, S-M5-18); every F exactly 41 + 4 slabs (${fOk}); FK ${fk.phase}, the lever unlocked; nothing conductive over any chest (${opens})`);
         // (bar 6, access [1]) a survival player opens and empties every chest through its menu: the input, the overflow, each slot chest, each
         // bulk half (both rows). One stack put in, the chest opened as a player opens it, everything taken out through the menu
         const chests = [['input', h.input], ['overflow', h.overflow], ...h.sort.map((c, u) => [`slot ${u + 1}`, c.chest]), ...h.pairs.flatMap((pr, i) => pr.map((c, k) => [`bulk ${i + 1}${k ? 'b' : 'a'}`, c]))];
@@ -1400,15 +1400,28 @@ async function sortSurvival() {
     // (the leak), or the 1 dirt in F 0; then taken back whole, and gone from the hall
     const wt = fk2.siteWait ?? fk2.wait ?? null;
     const contaminant = out.leak ? { 'minecraft:cobblestone': 64 } : { 'minecraft:dirt': 1 };
-    const sB = sumAll(await sortState(h));
+    const stB = await sortState(h);
+    const sB = sumAll(stB);
     const intact = Object.entries(contaminant).every(([k, n]) => (sB[k] ?? 0) === n) && (out.leak ? totalOf(sB) === 64 : true);
-    check(fA.ok && fk2.phase !== 'UNLOCKED' && wt?.blocked === 'fill_blocked' && intact && fillCharged.length === 0,
-      `B2 an F contaminated before the fill: the fill waits fill_blocked (FK ${fk2.phase}; ${json(wt)}), the contaminant all there (${json(contaminant)}: ${intact}), no filter item charged past the structure (${json(fillCharged)})`, { ...out.blocked, before: sB });
-    // the player takes their dirt back: the fill runs once
-    const t0 = await mod({ op: 'clearContainers', box: [...h.sort[0].F, ...h.sort[0].F] });
-    let taken = t0.taken ?? {};
     if (out.leak) {
-      for (const c of h.sort) for (const at of [c.line, c.D]) taken = plus(taken, (await mod({ op: 'clearContainers', box: [...at, ...at] })).taken);
+      // (M4b-074, Architect FL on 0.91.0: S-M5-17 fixed) the hopper refusal keeps a mid-build insert out of every F: F, line and D hold none of
+      // the player's 64 cobblestone, all of it waits in the overflow or the sort chests, the fill runs (UNLOCKED), only the structure and the fill
+      // are charged (no filter item past the quote), and Architect counts the refused insertions (dev.fk.state held > 0)
+      const cob = (ms) => ms.reduce((a, m) => a + (m?.['minecraft:cobblestone'] ?? 0), 0);
+      const inLine = cob([...stB.F, ...stB.line, ...stB.D]);
+      const outside = cob([stB.input, stB.overflow, ...stB.chest, ...(stB.bulk ?? [])]);
+      const overQuote = ['stone', 'redstone', 'dirt', 'coal'].map((k) => `minecraft:${k}`).filter((k) => (charged[k] ?? 0) > (quote[k] ?? 0));
+      const refusedN = Number(fk2.held ?? 0);
+      out.blocked.fl = { inLine, outside, overQuote, held: fk2.held ?? null };
+      check(fk2.phase === 'UNLOCKED' && inLine === 0 && outside === 64 && overQuote.length === 0 && refusedN > 0,
+        `B2 (FL) the mid-build insert kept out of every F: cobblestone in F/line/D ${inLine}, in the overflow or the chests ${outside} of 64; the fill ran (FK ${fk2.phase}); charged past the quote ${json(overQuote)}; insertions refused ${fk2.held ?? 'not reported'}`, { ...out.blocked, before: sB });
+    } else check(fA.ok && fk2.phase !== 'UNLOCKED' && wt?.blocked === 'fill_blocked' && intact && fillCharged.length === 0,
+      `B2 an F contaminated before the fill: the fill waits fill_blocked (FK ${fk2.phase}; ${json(wt)}), the contaminant all there (${json(contaminant)}: ${intact}), no filter item charged past the structure (${json(fillCharged)})`, { ...out.blocked, before: sB });
+    // the player takes their dirt back: the fill runs once. (M4b-074) After the leak only the cobblestone is taken back, from the overflow and the
+    // sort chests where FL left it: never F 0, which holds the fill
+    let taken = {};
+    if (!out.leak) taken = (await mod({ op: 'clearContainers', box: [...h.sort[0].F, ...h.sort[0].F] })).taken ?? {};
+    else {
       for (const c of h.sort) taken = plus(taken, (await mod({ op: 'clearContainers', box: [...c.chest, ...c.chest] })).taken);
       taken = plus(taken, (await mod({ op: 'clearContainers', box: [...h.overflow, ...h.overflow] })).taken);
       taken = plus(taken, (await mod({ op: 'clearContainers', box: [...h.input, ...h.input] })).taken);
