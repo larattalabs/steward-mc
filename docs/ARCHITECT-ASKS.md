@@ -1797,6 +1797,10 @@ takes everything a module lot needs (plan/0 `lot.size`, `irrigate`, `field`, `ex
   then cover the write-back, a restart and a retry on the hall's own undoRevision path, beside FKC1, FKC2 and CS1.
 - **S-M5-17. A fill's lock holds through a survival build** (slice M4b's `sort-survival` step B2, 2026-11-15, Architect v0.72.0; sent
   through the manager, beside M5a's S-M5-14 to 16).
+  - **CLOSED, fixed by Architect FL in v0.91.0** (2026-11-22, T4R-PIN; Architect's diagnosis, checked against our code): a fill site's declared
+    containers take no automated insertion before the unlock (`dev.fk.state` counts the refusals as `held`). On 0.91.0 the mid-build insert
+    never reaches an F; it waits in the overflow or the sort chests, and the fill runs. Steward's side is M4b-074 (78d8fc22): B2's leak judge,
+    and a take-back that never clears F 0. Nothing was lost or minted; the first 0.91.0 runs failed on the harness, not the hall.
   - **Seen in game:** a storage_hall@2 (4 slots, rustic) grown from the stockpile in half waves. Once its input chest stood, the player put 64
     cobblestone into it. Before the fill, line hopper 0 took it down: F0 held 45 cobblestone and D0 held 1. Then the fill waited
     `fill_blocked` on F0's cell. Nothing was charged or lost: no filter item was charged past the structure, and the player's items stayed in
@@ -1825,6 +1829,8 @@ takes everything a module lot needs (plan/0 `lot.size`, `irrigate`, `field`, `ex
     expects no item in F (follow-up M4b-074).
 - **S-M5-18. The land check reads a filled fill container as changed** (slice M4b's `sort` bar 6, 2026-11-15, Architect v0.72.0; sent
   through the manager).
+  - **CLOSED, fixed by Architect FL in v0.91.0** (2026-11-22, T4R-PIN): the land check reads a filled container within its fill as SAME. Bar 6
+    expects `changed 0` again (M4b-074).
   - **Seen in game:** every storage_hall@2 just built and filled (10 halls, 4 to 16 slots, all four facings) reads `standing 1, changed N`
     from `dev.region.landCheck`, N its slot count. Each slot's F hopper holds exactly its fill (41 of the filter item and 4 provided slabs),
     FK reads UNLOCKED, and nothing else in the hall holds items.

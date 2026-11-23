@@ -591,6 +591,10 @@ a HUD label is a follow-up.
   - A filled F's settled D state is `enabled=false` in the template, so the land check reads a built hall as unchanged.
   - Architect's land check counts a container written empty that now holds items as changed, so each filled F is one changed cell: bar 6
     reads `changed` equal to the slot count, with every F holding exactly 41 + 4 slabs (S-M5-18 asks Architect to count a fill as its own).
+- **M4b-074 done at the 0.91.0 pin (2026-11-22, T4R-PIN, 78d8fc22):** FL first ships in v0.91.0. B2's leak branch expects the
+  insert in no F, line or D, all 64 cobblestone in the overflow or sort chests, the fill UNLOCKED, nothing past the quote, and `dev.fk.state`
+  `held` > 0. Its take-back clears only the overflow, the chests and the input, never F 0. Bar 6 expects `changed 0`. `dev.fk.container`
+  answers `state` (FL), and `dev.fk.state` answers `held`. The non-leak dirt branch is unchanged: on 0.91.0 both runs took the leak branch.
 - **Follow-up M4b-074 (at the pin that carries Architect LC3 with FL 50f47d9b; v0.74.0 carries neither):** bar 6 goes back to expecting `changed 0` (S-M5-18), and
   sort-survival's mid-build insert expects no item in F (S-M5-17, the hopper refusal); `dev.fk.container` answers `state`, `dev.fk.state` `held`.
 
