@@ -1,7 +1,7 @@
 // (T4RD-S, S-1) module-measure's bar 7b judges: on T4R-D the placer's blocks are owed to it, never on the ground.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { placerOwed, judgeCargo, owedTotal, judgeRestart, PLAYER_BLOCKS } from '../tools/lib/owed-cargo.mjs';
+import { placerOwed, judgeCargo, owedTotal, judgeRestart, grew, PLAYER_BLOCKS } from '../tools/lib/owed-cargo.mjs';
 
 const PLACER = 'uuid-farmer';
 const want = { 'minecraft:wheat_seeds': 4, 'minecraft:cobblestone': 2, 'minecraft:torch': 2 };
@@ -31,6 +31,17 @@ test('T4R-D: owed to the placer, nothing on the ground', () => {
   assert.equal(judgeCargo({ t4: true, undo: { removed: true }, placer: PLACER, ground: {}, want: {} }).ok, false);
   assert.equal(judgeCargo({ t4: true, undo: { owedParts: [] }, placer: PLACER, ground: {}, want }).ok, false);
   assert.equal(judgeCargo({ t4: true, undo: { owedParts: parts }, placer: '', ground: {}, want }).ok, false);
+});
+
+test('without owedParts in the answer: the placer\'s owed store across the undo (S-1\'s alternative)', () => {
+  const before = { 'minecraft:torch': 1 };
+  const after = { 'minecraft:torch': 3, 'minecraft:cobblestone': 2, 'minecraft:wheat_seeds': 4 };
+  assert.deepEqual(grew(before, after), want);
+  assert.equal(judgeCargo({ t4: true, undo: { removed: true }, placer: PLACER, ground: {}, want, owedDelta: grew(before, after) }).ok, true);
+  assert.equal(judgeCargo({ t4: true, undo: { removed: true }, placer: PLACER, ground: {}, want, owedDelta: grew(before, before) }).ok, false, 'nothing owed');
+  assert.equal(judgeCargo({ t4: true, undo: { removed: true }, placer: PLACER, ground: { f1: { 'minecraft:torch': 1 } }, want, owedDelta: want }).ok, false);
+  // owedParts, when there, win over the store
+  assert.equal(judgeCargo({ t4: true, undo: { owedParts: [] }, placer: PLACER, ground: {}, want, owedDelta: want }).ok, false);
 });
 
 test('before T4R-D: each farm drops its own blocks (the bar as it was)', () => {

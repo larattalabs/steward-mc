@@ -34,19 +34,29 @@ export function placerOwed(undo, placer) {
  * - before T4R-D: each farm's ground holds exactly its own `wantPerFarm` (dropped, never credited), as the bar always read it.
  * `ground`: per farm id, the items picked up there. -> { ok, why }.
  */
-export function judgeCargo({ t4, undo, placer, ground, want, wantPerFarm }) {
+export function judgeCargo({ t4, undo, placer, ground, want, wantPerFarm, owedDelta }) {
   if (t4) {
     if (!placer) return { ok: false, why: 'the placer\'s UUID is unknown (dev.pt.uuid): the owed parts can\'t be read' };
-    if (!Array.isArray(undo?.owedParts)) return { ok: false, why: `the undo's answer has no owedParts (${json(Object.keys(undo ?? {}))}): this Architect doesn't report them` };
-    const owed = placerOwed(undo, placer);
+    // the undo's own owedParts, else (S-1's alternative, A3) what the placer's owed entries grew by across this undo (dev.stockpile.owed: Architect's
+    // durable owed store); neither is a FAIL, never a pass
+    const parts = Array.isArray(undo?.owedParts);
+    if (!parts && !owedDelta) return { ok: false, why: `the undo's answer has no owedParts (${json(Object.keys(undo ?? {}))}) and the placer's owed wasn't read` };
+    const owed = parts ? placerOwed(undo, placer) : nonZero(owedDelta);
     const loose = Object.entries(ground ?? {}).filter(([, m]) => Object.keys(nonZero(m)).length > 0);
     if (loose.length) return { ok: false, why: `items on the ground at ${loose.map(([id, m]) => `${id} ${json(nonZero(m))}`).join(', ')}: a T4R-D undo drops none` };
     if (!same(owed, want)) return { ok: false, why: `owed to the placer ${json(nonZero(owed))}, want ${json(nonZero(want))}` };
-    return { ok: true, why: `owed to the placer ${json(nonZero(owed))}, nothing on the ground` };
+    return { ok: true, why: `owed to the placer ${json(nonZero(owed))} (${parts ? 'the undo\'s owedParts' : 'the placer\'s owed store, across the undo'}), nothing on the ground` };
   }
   const off = Object.entries(wantPerFarm ?? {}).filter(([id, w]) => !same(ground?.[id], w));
   if (off.length) return { ok: false, why: off.map(([id, w]) => `${id}: on the ground ${json(nonZero(ground?.[id]))}, want ${json(nonZero(w))}`).join('; ') };
   return { ok: true, why: 'each farm\'s blocks dropped at it' };
+}
+
+/** What `after` holds more of than `before` (item maps): an owed store's growth across one step. */
+export function grew(before, after) {
+  const out = {};
+  for (const [k, v] of Object.entries(after ?? {})) { const d = Number(v) - Number(before?.[k] ?? 0); if (d > 0) out[k] = d; }
+  return out;
 }
 
 /** `dev.stockpile.owed {recipient}`'s answer (`owed [{items}]`) summed to one item map. */

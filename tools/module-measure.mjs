@@ -23,7 +23,7 @@ import { acquire as acquireSlot, release as releaseSlot } from './lib/slot-queue
 import { repairSidecarData } from './lib/ram-tmp.mjs';
 import { claimAnswerFile } from './lib/disk.mjs';
 import { checkCommand } from './lib/save-barrier.mjs';
-import { judgeCargo, judgeRestart, owedTotal } from './lib/owed-cargo.mjs';
+import { judgeCargo, judgeRestart, owedTotal, grew } from './lib/owed-cargo.mjs';
 import { t4Gate } from './lib/t4-rows.mjs';
 import { CROPS, T as TCYCLE, CYCLES, DAY, USEFUL_PER_CROP_DAY, bands as barBands } from './lib/crop-farm-bars.mjs';
 
@@ -986,6 +986,7 @@ async function survival() {
     const allFarms = new Map(farms.map((f) => [f.id, f]));
     for (const g of growths) {
       const before = await pile();
+      const owedBefore = t4 ? owedTotal(await call('dev.stockpile.owed', { recipient: placer }, 120_000)) : {};
       const u = await call('dev.rv.undo', { region, toPosition: g.position - 1 }, 4 * 3_600_000);
       await sleep(6000);
       const after = await pile();
@@ -1012,7 +1013,8 @@ async function survival() {
         wantPerFarm[id] = wantCargo;
         wantAll = plus(wantAll, wantCargo);
       }
-      const cj = judgeCargo({ t4, undo: u, placer, ground: cargo, want: wantAll, wantPerFarm });
+      const owedDelta = t4 ? grew(owedBefore, owedTotal(await call('dev.stockpile.owed', { recipient: placer }, 120_000))) : null;
+      const cj = judgeCargo({ t4, undo: u, placer, ground: cargo, want: wantAll, wantPerFarm, owedDelta });
       g.undo.owedParts = u.owedParts ?? null;
       check(cj.ok, t4 ? `7b cargo rid ${g.rid}: each player replant's planting item once, the cobblestone and the torch, owed to the player (never dropped, never credited): ${cj.why}`
         : `7b cargo rid ${g.rid}: each player replant's planting item once, the cobblestone and the torch, as the player's (dropped, never credited): ${cj.why}`, { wantPerFarm, cargo });
