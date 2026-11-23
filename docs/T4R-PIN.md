@@ -1,5 +1,15 @@
 # T4R-PIN: Steward ready for the Architect pin carrying T4R-D (as-built, 2026-11-22)
 
+**Pinned to Architect 0.91.0** (API 1.72.0, kit 0.79.0, published jar sha256 `5eea4921…`, nesting lab_ui 0.6.2), built offline without
+`ARCHITECT_JAR`:
+- **Units:** Java 991/1003 (the 12 red rows need storage_hall@2 certified on the running Architect); npm 332/332.
+- **Strict e2e** `stub --clients 2 --ports 9126,9128 --only undo,revert,update,district,survival,crash`: 346/348. Both misses are storage-hall
+  proposals; the offer takes the newest version, @2, which isn't carried. No known-risk conservation row tripped.
+- **Certificates** (MEASURE-M2, MEASURE-M4 9o): crop_farm@1 and storage_hall@1 carried at 0.91.0. storage_hall@2 is not: its sort-survival
+  fails 15/19 on 0.91.0, deterministically. That's Noah's call: re-measure @2, or ask Architect about the mid-build insert and the F 0 refund.
+- **The sculpt crash flows are back in batch runs** (PLR): docs/SPEED-CUTS.md "Restored" and the PLAN Decisions row.
+
+
 Strict tier. Branch `t4r-pin` (cut from main bc60f501): `t4s-pre` merged, then T4RD-S (LEFTOVERS rows T4S-PRE and T4RD-S), against Architect
 `slice/T4R`. **It builds only with `ARCHITECT_JAR`** (it uses `Busy`, `OwedPart`, `RemovalFinished`, `RemovalStopCause.WAITING_BEHIND`) until
 `architect_version` moves to the release. The RC jar is slice/T4R **367e40ce** (Architect's release fix round), built with the sidecar bundle

@@ -252,6 +252,19 @@ survival vocab unchanged; QL only adds `Quote.terrain`). Fresh: offline 151/151,
 re-quoted bounds equal the carried ones), the hall round 218/218; e2e `module-hall` PASS 18. `record --smoke` works per module now: the
 hall's evidence is artifacts/m4 and its round is the deterministic hall step (the catalog's smoke check takes it).
 
+## 9o. Architect 0.91.0 (2026-11-22, T4R-PIN): storage_hall@1 carried, @2 not
+
+The kit/checker pins moved to 0.79.0; the published jar's sha256 is `5eea4921…`.
+- **@1 carried:** hall 218/218, bounds 58/58, survival 26/26.
+- **@2 not carried:** hall 218/218 and bounds 382/382, but sort-survival 15/19, the same 4 rows on 2 runs:
+  - B2: the player's 64 cobblestone inserted mid-build is gone from the hall at the preload (input, line, F and D all empty), so the fill
+    runs UNLOCKED instead of waiting `fill_blocked`;
+  - 8: filled once; taken;
+  - 8 refund: credited is 33 stone short. The 33 stone left in F 0 is not refunded as the structure's own.
+  T4R-D's cargo extraction and owed paths changed what @2's billing check measures (rule 11b). `record --smoke` refuses it, and its pins stay
+  kit 0.78.0, so its 0.89.0 certificate stays self-consistent and the game offers it on 0.89.0 only. A re-measure or an Architect fix is
+  Noah's call. The evidence is `artifacts/m4b/sort-survival.json` in `_work/steward-t4r-pin-hall`.
+
 ## 9n. Smoke carry to Architect 0.89.0 (2026-11-20, rc-089)
 
 Both halls carried to 0.89.0 (kit/checker pins moved to 0.78.0, programs unchanged, moduleShas with the old pins put back unchanged), on the
