@@ -10830,14 +10830,12 @@ try {
       await flow('composed-sculpt', 'composed module hall sculpt plan water undo', () => composedSculptFlow());
       await flow('composed-sculpt-survival', 'composed module hall sculpt survival stockpile bill refund water', () => composedSculptSurvivalFlow());
       // (B092-FIX, batch 092 GPT review P2) the same town halted uncleanly part way through the river's paid lining, restarted, finished and undone
-      // (E2E-SPEED-2, Noah 11-22: "Nightly-only until PLR") the lining-halt crash hits B092L-1 too; back in batch runs once the pin carries PLR
-      await flow('composed-sculpt-survival-crash', 'composed module hall sculpt survival stockpile bill refund water restart crash', () => composedSculptSurvivalFlow({ crash: true }), [],
-        { nightlyOnly: 'until Architect PLR (B092L-1): orphaned placing site after a mid-lining halt' });
+      // (E2E-SPEED-2, Noah 11-22: "Nightly-only until PLR") the lining-halt crash hit B092L-1 too; back in batch runs at the 0.91.0 pin, which carries PLR
+      await flow('composed-sculpt-survival-crash', 'composed module hall sculpt survival stockpile bill refund water restart crash', () => composedSculptSurvivalFlow({ crash: true }));
       // (B092-LEFT) a stale artifact on a sculpt site: stopped before any re-check, pin, quote, realise or spend; a new Start plans it anew
       // (B092-LEFT, batch 092 GPT review P2) the crash points left: during the free carve, the free water, and the undo's refund crediting
-      // nightly-only until Architect fixes the orphaned 'placing' terrain site after a mid-carve halt (ARCHITECT-ASKS, 11-21: the fluids stage waits forever, 1 in 3)
-      await flow('composed-sculpt-crash-carve', 'composed module hall sculpt survival stockpile bill refund water restart crash', () => composedSculptSurvivalFlow({ crash: 'carve' }), [],
-        { nightlyOnly: 'Architect orphaned placing site after a mid-carve halt' });
+      // (ARCHITECT-ASKS 11-21) was nightly-only for the orphaned 'placing' terrain site after a mid-carve halt; back in batch runs at the 0.91.0 pin (PLR)
+      await flow('composed-sculpt-crash-carve', 'composed module hall sculpt survival stockpile bill refund water restart crash', () => composedSculptSurvivalFlow({ crash: 'carve' }));
       await flow('composed-sculpt-crash-water', 'composed module hall sculpt survival stockpile bill refund water restart crash', () => composedSculptSurvivalFlow({ crash: 'water' }));
       await flow('composed-sculpt-crash-refund', 'composed module hall sculpt survival stockpile bill refund undo restart crash', () => composedSculptSurvivalFlow({ crash: 'refund' }));
       await flow('composed-sculpt-stale', 'composed module hall sculpt survival stockpile bill stale', () => composedSculptStaleFlow());

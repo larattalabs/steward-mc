@@ -37,7 +37,6 @@ gate-verifier step (AGENTS.md speed rule 10).
 | What | Min saved | No longer covered in batch and slice runs | Back with |
 |---|---|---|---|
 | `module-survival`'s waiting round (S-M5-10, a carrot lot fed in halves, then undone) | about 5 | Report only: its row can't fail, so a batch only lost time to it. Its line says `skip ... report only`. | `--full` (forwarded to the lane clients), or the nightly |
-| `composed-sculpt-survival-crash` nightly-only (E2E-SPEED-2; Noah 11-22: "Nightly-only until PLR") | about 2.3 (140 s of flow time) | The lining-halt crash scenario in batch and slice runs: a composed sculpt town halted uncleanly part way through the river's paid lining, restarted, finished and undone. It hits Architect's orphaned `placing` site (B092L-1) like `-crash-carve`. The nightly still runs it. | Drop its `nightlyOnly` in `tools/e2e.mjs` when the Steward pin reaches the Architect release carrying PLR (B092L-1); `--only composed-sculpt-survival-crash` runs it meanwhile |
 | `--fast` for light-only batches (E2E-SPEED-2; Noah 11-22: "1+2+3: all speed items") | about 45-50 per light batch (a 3-client full stub projects ~59 min; the fast set ~11 min) | A light-only batch (no strict slice) runs the sanity set, one flow per risk area (`FAST_FLOWS` in `tools/lib/e2e-flows.mjs`: `survival`, `composed-modules-survival`, `module-hall-survival`, `revision`, `discard`, `district-region`, `composed-hall-fill-restart`) and the flows its slices touched (`--only` words, and by file since the merge base: their e2e code or fixtures; harness code every flow runs counts as covered), not the other ~65 stub flows. A strict batch never uses it; its summary says `tier: 'fast'`. | Run the batch without `--fast`; the nightly runs everything |
 
 **The `--full` tier.** A flow given `{ full: '<why>' }` in `tools/e2e.mjs` runs only:
@@ -90,3 +89,9 @@ the certificates measure:
 - the 6-8 s settles after a halt or restart.
 
 Shortening them would change what is recorded, and the tools run rarely, so they stay as they are.
+
+## Restored
+
+- **2026-11-22, at the Architect 0.91.0 pin (T4R-PIN), which carries PLR (B092L-1):** `composed-sculpt-survival-crash` and
+  `composed-sculpt-crash-carve` run in batch and slice runs again (their `nightlyOnly` dropped in `tools/e2e.mjs`). The cut was:
+  `composed-sculpt-survival-crash` nightly-only (E2E-SPEED-2; Noah 11-22: "Nightly-only until PLR") (about 2.3 min).

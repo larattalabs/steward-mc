@@ -30,14 +30,13 @@ const STUB = (() => {
 
 // ------------------------------------------------------------------ item 6
 
-test('item 6: both sculpt crash flows that hit B092L-1 are nightly-only', () => {
+test('item 6, restored at the 0.91.0 pin (PLR): both sculpt crash flows run in batch and slice runs again', () => {
   const night = STUB.filter((f) => f.nightlyOnly).map((f) => f.name);
-  assert.ok(night.includes('composed-sculpt-survival-crash'), 'composed-sculpt-survival-crash: nightly-only until PLR');
-  assert.ok(night.includes('composed-sculpt-crash-carve'));
-  // a batch run leaves it out, the nightly runs it
+  assert.ok(!night.includes('composed-sculpt-survival-crash'), 'composed-sculpt-survival-crash: back in batch runs');
+  assert.ok(!night.includes('composed-sculpt-crash-carve'));
+  assert.ok(STUB.some((f) => f.name === 'composed-sculpt-survival-crash') && STUB.some((f) => f.name === 'composed-sculpt-crash-carve'));
   const why = new Map(STUB.map((f) => [f.name, '']));
-  assert.ok(tierSkips(STUB, why).some((s) => s.name === 'composed-sculpt-survival-crash'));
-  assert.ok(!tierSkips(STUB, why, { nightly: true }).some((s) => s.name === 'composed-sculpt-survival-crash'));
+  assert.ok(!tierSkips(STUB, why).some((s) => s.name === 'composed-sculpt-survival-crash' || s.name === 'composed-sculpt-crash-carve'));
 });
 
 // ------------------------------------------------------------------ item 3: the fast set
