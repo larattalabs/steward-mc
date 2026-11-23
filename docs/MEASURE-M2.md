@@ -187,6 +187,10 @@ crops, rustic. Fed from the stockpile until PLACED.
   - The stockpile is credited exactly the consumption, less one construction seed for every cell the player harvested.
   - Every player replant gives back its planting item exactly once, as the player's: dropped at the site, never credited.
   - The cobblestone and the torch come back as the player's.
+  - (T4RD-S, from the Architect release carrying T4R-D) The player's blocks are no longer dropped: they are owed to their placer
+    (`RemoveResult.owedParts`, reason `player_blocks`, recipient `dev.pt.uuid` of `M2Farmer`), summed over the growth's farms, and the ground
+    holds none. After the restart the placer's owed entries (`dev.stockpile.owed`) read the same and the ground stays empty. The tool picks the
+    judge by Architect's `removal_finished` feature (`tools/lib/owed-cargo.mjs`); an older Architect keeps the dropped-items judge.
   - Items in = items out:
 
     ```
@@ -236,6 +240,20 @@ Speed rule 4 (Noah, 2026-11-13; AGENTS.md "Module re-certification") says when a
 - **Candidate 3:** the port on the foundation role instead of a path. The layout and the crop counts are candidate 2's.
 
 ## Results
+
+**Carried to Architect 0.91.0 by a smoke check (2026-11-22, T4R-PIN; speed rule 11b).**
+- **Pins:** kit/checker 0.79.0. The program (`c406df05…`) is unchanged; the published jar's sha256 is `5eea4921…`.
+- **The re-measure triggers** (`git diff v0.89.0 v0.91.0 -- kit mod/src/main`):
+  - realise.mjs and region/plan.mjs change only their version strings;
+  - T4R-D changes Builder, Stockpiles and Refunds: player blocks owed, cargo extraction, admission;
+  - quotes, FullBom and the lot realise path don't move.
+  The billing and refund step (survival, bar 7) exercises exactly the changed paths and passed in full. Bar 7b now judges the placer's blocks
+  as owed (T4RD-S).
+- **Fresh:**
+  - survival 57/57, bounds 111/111 (the 108 re-quoted bounds equal the carried ones);
+  - field-potatoes 62/62 (5 runs; -3.4% to 10.6% per crop-day of the carried rates);
+  - offline 295/295, ingame 292/292;
+  - ports 9126/9127, $0.
 
 **Carried to Architect 0.89.0 by a smoke check (2026-11-20, rc-089; speed rule 11b).** The pins moved to kit/checker 0.78.0, the program
 (`c406df05…`) unchanged, module.json with the old pins put back hashing to the carried moduleSha; the published 0.89.0 jar (sha256 `8a1b9f8f…`;

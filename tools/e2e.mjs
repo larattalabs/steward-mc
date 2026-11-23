@@ -24,6 +24,7 @@ import { orderUnits, simulateQueue, unitQueue, unitBoundS, laneSession, queueFai
 import { pickFlows, groupFlows, codeBlocks, closureOf, fixtureRefs, hashPaths, hashText, hashLib, skipDecision, applySkips, isStrict, mergeFlowSeconds, tierSkips, fastPick, fastNames, LANE_OVERHEAD_S, blocksWithLibs, touchedByFiles } from './lib/e2e-flows.mjs';
 import { useRamTmp, ramSidecarData, RAM_TMP, reapSidecar, copyEvidence } from './lib/ram-tmp.mjs';
 import { sweepStale, cleanupOwned, cleanupOwnedSettled, keptBounds } from './lib/tmp-owner.mjs';
+import { t4Gate, afterDecision, heldWords } from './lib/t4-rows.mjs';
 import { checkCommand, saveBarrier } from './lib/save-barrier.mjs';
 import { judgeSort } from './lib/hall-sort.mjs';
 import { overflowGrew } from './lib/overflow.mjs';
@@ -5664,6 +5665,26 @@ async function suppliedGrowthFlow(mode = null) {
     const completion = (tag) => (settlements().find((x) => x.id === id)?.log ?? []).find((e) => e.siteGroup === tag && (e.kind === 'PROJECT_REMOVED'
       || (e.kind === 'NOTE' && /^The addition was not placed/.test(e.text ?? ''))));
     const until = async (pred, secs) => { for (let i = 0; i < secs; i++) { const v = pred(); if (v) return v; await sleep(1000); } return null; };
+    /**
+     * (T4S-PRE) T4 change 1: on Architect's removal transactions (feature removal_finished) RVU1/RVU2 are past the decision. Waits as `until` for the
+     * growth's completion, reading its revision's state each second; then the revision never read PLACED again (a point before the decision aborts),
+     * and nothing after the restart said a stop or Architect's text. Without the feature: a note, not red.
+     */
+    const t4AfterDecision = async (lbl, tag) => {
+      const gate = t4Gate(await devModule({ op: 'env' }).catch(() => null));
+      if (!gate.run) { ok(`${lbl} T4 alias`, `skipped: ${gate.why}`); return until(() => completion(tag), 600); }
+      const rid = Number(/:(\d+)$/.exec(tag)?.[1]);
+      const states = [];
+      const read = async () => { const r = ((await view()).revisions ?? []).find((x) => x.rid === rid); if (r?.state && states.at(-1) !== r.state) states.push(r.state); };
+      let done = null;
+      for (let i = 0; i < 600 && !(done = completion(tag)); i++) { await read(); await sleep(1000); }
+      await read();
+      const dec = afterDecision(states);
+      if (dec.ok) ok(`${lbl} T4 alias after the decision`, dec.why); else fail(`${lbl} T4 alias after the decision`, dec.why);
+      const words = heldWords(logSince(0));
+      if (words.ok) ok(`${lbl} T4 words`, words.why); else fail(`${lbl} T4 words`, words.why);
+      return done;
+    };
 
     // (A2L 1) undo while waiting: the library growth's targets wait for items; /steward undo takes it up now (Architect's RU), what it drew back once
     {
@@ -5714,7 +5735,7 @@ async function suppliedGrowthFlow(mode = null) {
       else if (g) {
         const spB = await ledger();
         const halted = await killed('RVU1+save', () => cmd(`/steward cancel ${id}`));
-        const done = halted && await until(() => completion(g.tag), 600);
+        const done = halted && await t4AfterDecision(lbl, g.tag);
         if (!halted) fail(lbl, 'the kill point RVU1 was never reached');
         else if (!done) fail(lbl, `no completion 10 min after the restart; ${chatTail(0)}`);
         else await judge(lbl, g.tag, g.spStart, spB, (settlements().find((x) => x.id === id)?.log ?? []).find((e) => e.kind === 'PROJECT_PLACED' && e.siteGroup === g.tag)?.siteIds, 0);
@@ -5729,7 +5750,7 @@ async function suppliedGrowthFlow(mode = null) {
       if (g) {
         const spB = await ledger();
         const halted = await killed('RVU2+save', () => cmd(`/steward undo ${id}`));
-        const done = halted && await until(() => completion(g.tag), 600);
+        const done = halted && await t4AfterDecision(lbl, g.tag);
         if (!halted) fail(lbl, 'the kill point RVU2 was never reached');
         else if (!done) fail(lbl, `no completion 10 min after the restart; ${chatTail(0)}`);
         else {
@@ -10809,14 +10830,12 @@ try {
       await flow('composed-sculpt', 'composed module hall sculpt plan water undo', () => composedSculptFlow());
       await flow('composed-sculpt-survival', 'composed module hall sculpt survival stockpile bill refund water', () => composedSculptSurvivalFlow());
       // (B092-FIX, batch 092 GPT review P2) the same town halted uncleanly part way through the river's paid lining, restarted, finished and undone
-      // (E2E-SPEED-2, Noah 11-22: "Nightly-only until PLR") the lining-halt crash hits B092L-1 too; back in batch runs once the pin carries PLR
-      await flow('composed-sculpt-survival-crash', 'composed module hall sculpt survival stockpile bill refund water restart crash', () => composedSculptSurvivalFlow({ crash: true }), [],
-        { nightlyOnly: 'until Architect PLR (B092L-1): orphaned placing site after a mid-lining halt' });
+      // (E2E-SPEED-2, Noah 11-22: "Nightly-only until PLR") the lining-halt crash hit B092L-1 too; back in batch runs at the 0.91.0 pin, which carries PLR
+      await flow('composed-sculpt-survival-crash', 'composed module hall sculpt survival stockpile bill refund water restart crash', () => composedSculptSurvivalFlow({ crash: true }));
       // (B092-LEFT) a stale artifact on a sculpt site: stopped before any re-check, pin, quote, realise or spend; a new Start plans it anew
       // (B092-LEFT, batch 092 GPT review P2) the crash points left: during the free carve, the free water, and the undo's refund crediting
-      // nightly-only until Architect fixes the orphaned 'placing' terrain site after a mid-carve halt (ARCHITECT-ASKS, 11-21: the fluids stage waits forever, 1 in 3)
-      await flow('composed-sculpt-crash-carve', 'composed module hall sculpt survival stockpile bill refund water restart crash', () => composedSculptSurvivalFlow({ crash: 'carve' }), [],
-        { nightlyOnly: 'Architect orphaned placing site after a mid-carve halt' });
+      // (ARCHITECT-ASKS 11-21) was nightly-only for the orphaned 'placing' terrain site after a mid-carve halt; back in batch runs at the 0.91.0 pin (PLR)
+      await flow('composed-sculpt-crash-carve', 'composed module hall sculpt survival stockpile bill refund water restart crash', () => composedSculptSurvivalFlow({ crash: 'carve' }));
       await flow('composed-sculpt-crash-water', 'composed module hall sculpt survival stockpile bill refund water restart crash', () => composedSculptSurvivalFlow({ crash: 'water' }));
       await flow('composed-sculpt-crash-refund', 'composed module hall sculpt survival stockpile bill refund undo restart crash', () => composedSculptSurvivalFlow({ crash: 'refund' }));
       await flow('composed-sculpt-stale', 'composed module hall sculpt survival stockpile bill stale', () => composedSculptStaleFlow());

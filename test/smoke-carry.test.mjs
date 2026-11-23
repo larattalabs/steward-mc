@@ -175,7 +175,8 @@ test('storage_hall@1 carries on its hall round, from the version it was fully me
   };
   const { why, m } = smokeCarry(a);
   assert.deepEqual(why, []);
-  assert.equal(m.from, '0.67.0');
+  // from the version of its last full measurement (0.67.0 until T4R-PIN measured it again on 0.91.0)
+  assert.equal(m.from, hm.basis === 'smoke' ? hm.from : [].concat(hm.architect)[0]);
   assert.deepEqual(m.rates, []);
   assert.equal(m.checks.smoke.fields[0].step, 'hall');
   const b = clone(a); b.fields[0].ok = false;
