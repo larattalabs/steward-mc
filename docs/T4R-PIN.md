@@ -2,11 +2,19 @@
 
 **Pinned to Architect 0.91.0** (API 1.72.0, kit 0.79.0, published jar sha256 `5eea4921…`, nesting lab_ui 0.6.2), built offline without
 `ARCHITECT_JAR`:
-- **Units:** Java 991/1003 (the 12 red rows need storage_hall@2 certified on the running Architect); npm 332/332.
+- **Units:** Java 1003/1003; npm 332/332.
 - **Strict e2e** `stub --clients 2 --ports 9126,9128 --only undo,revert,update,district,survival,crash`: 346/348. Both misses are storage-hall
   proposals; the offer takes the newest version, @2, which isn't carried. No known-risk conservation row tripped.
-- **Certificates** (MEASURE-M2, MEASURE-M4 9o): crop_farm@1 and storage_hall@1 carried at 0.91.0. storage_hall@2 is not: its sort-survival
-  fails 15/19 on 0.91.0, deterministically. That's Noah's call: re-measure @2, or ask Architect about the mid-build insert and the F 0 refund.
+- **Certificates** (MEASURE-M2, MEASURE-M4 9o):
+  - crop_farm@1 is carried (smoke) at 0.91.0.
+  - storage_hall@1 and @2 are **fully measured** at 0.91.0, kit/checker 0.79.0:
+    - @1: hall 218/218, survival 26/26, bounds 58/58;
+    - @2: hall 218/218, bounds 382/382, sort 260/260, sort-survival 19/19, sort-cargo 26/26, sort-crash 68/68 (sort-plain wasn't needed:
+      sort's coverage passed).
+  - @2's first 0.91.0 runs failed on the harness, not the hall. FL (S-M5-17/18, first in 0.91.0) keeps a mid-build insert out of F, so B2's
+    old judge and its F 0 take-back were wrong. M4b-074 fixed the harness, and S-M5-17/18 are closed in ARCHITECT-ASKS.
+  - Units after the measurement: 1003/1003. The 2 storage-hall offer misses aren't re-run yet (the nightly window); the batch's full stub
+    covers them.
 - **The sculpt crash flows are back in batch runs** (PLR): docs/SPEED-CUTS.md "Restored" and the PLAN Decisions row.
 
 
