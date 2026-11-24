@@ -5060,12 +5060,13 @@ public final class SettlementRunner {
 		// (8bS) the wait read typed (Architect 8b's ItemEvent.status; the home of waitsFor): Architect's say is never parsed or shown
 		ItemWait w = ItemWait.of(dev.larattalabs.steward.gateway.Typed.status(e), e.ext());
 		String plan = PlanStore.get(settlement.id()).map(PlanStore.Entry::plan).orElse(null);
-		String part = MaterialRequests.partWords(plan, dev.larattalabs.steward.gateway.Typed.part(e), settlement.name());
 		// (QD, BC-c) a part whose whole charge (a gate mechanism) would pass the approved bound: said in the steward's words, not Architect's
 		// (pin-073 batch review) cancel while this growth's build runs; else undo only when it would take this growth's own operation
+		// (WORDING-3) its subject is the waiting item, as a stage wait's ({@link #waitSubject}), never the typed part (the blocker's when it has none)
 		if (w != null && w.capped()) {
 			int rid = w.rid() > 0 ? w.rid() : dev.larattalabs.steward.gateway.Typed.rid(e);
-			String capped = capStageWait(w, part, settlement.id(), cancelTakesUp() ? MaterialRequests.TakeUp.CANCEL : MaterialRequests.takeUp(settlement, region, rid));
+			String capped = capStageWait(w, extString(e.ext(), "steward_mc:role"), e.ext(), e.itemKey(), plan, settlement.name(), settlement.id(),
+				cancelTakesUp() ? MaterialRequests.TakeUp.CANCEL : MaterialRequests.takeUp(settlement, region, rid));
 			if (saidWaits.add(capped)) say(capped);
 			return;
 		}
@@ -5180,7 +5181,7 @@ public final class SettlementRunner {
 	static @org.jspecify.annotations.Nullable String stageWait(@org.jspecify.annotations.Nullable ItemWait w, String what,
 		@org.jspecify.annotations.Nullable String waitsOn) {
 		if (w == null || w.reason() == null) return null;
-		String subject = MaterialRequests.theName(MaterialRequests.bare(what).replaceFirst("(?i)^lot\\s+", ""));
+		String subject = MaterialRequests.theName(subjectWords(what));
 		return switch (w.reason()) {
 			// (WORDING-2) one name, said once: a part waiting on another of its own targets (a river's next stage) waits for an earlier part of itself
 			case dev.larattalabs.architect.api.BuildStatus.STAGE -> subject + " waits for " + (waitsOn == null || waitsOn.isBlank() ? "an earlier part"
@@ -5188,6 +5189,11 @@ public final class SettlementRunner {
 			case dev.larattalabs.architect.api.BuildStatus.TERRAIN -> subject + " waits for its land to be shaped.";
 			default -> null;
 		};
+	}
+
+	/** (WORDING-3) A wait's subject as every wait line says it: without a leading article or "lot" ("Main gatehouse", not "lot gatehouse 1"). Pure. */
+	static String subjectWords(String what) {
+		return MaterialRequests.bare(what).replaceFirst("(?i)^lot\\s+", "");
 	}
 
 	/** (WORDING-2) Whether two names say one thing: compared without case, a leading article or "lot", underscores or extra spaces. Pure. */
@@ -5216,12 +5222,16 @@ public final class SettlementRunner {
 			own = p.getAsString();
 		if (own != null && !own.isBlank()) {
 			if (own.startsWith("lot ")) return MaterialRequests.lotWords(plan, own.substring(4).strip());
-			String said = MaterialRequests.partWords(plan, own, fallback);
-			if (said != null) return said;
+			// (WORDING-3) a road or street by its words ("west street of the Old riverside quarter"), never its id
+			String said = MaterialRequests.partWords(plan, ext, own, fallback);
+			if (said != null && !said.isBlank()) return said;
 		}
 		if (itemKey.startsWith("lot:")) return MaterialRequests.lotWords(plan, itemKey.substring(4));
+		if (itemKey.startsWith("road:")) return MaterialRequests.idWords(plan, ext, itemKey.substring(5));
 		if (BatchPlanner.isStreet(itemKey)) return "street";
-		return itemKey.replaceFirst("^[a-z]+:", "").replace('_', ' ');
+		String key = itemKey.replaceFirst("^[a-z]+:", "").replace('_', ' ').strip();
+		// (WORDING-3) nothing to name it by: "build", never an empty subject
+		return key.isEmpty() ? "build" : key;
 	}
 
 	/**
@@ -5245,12 +5255,21 @@ public final class SettlementRunner {
 	/**
 	 * (QD, Architect BC-c v0.73.0; 8bS typed) A stage wait held by the realise's {@code maxBill} ({@code bill_cap}: a gate mechanism's whole charge would
 	 * pass the approved bound; the over-cap units by item) in the steward's words, as a site's {@code bill_cap} wait is ({@link MaterialRequests#overCapWords});
-	 * else null. Its subject is the item's part in words ({@code part}, typed: never cut out of Architect's say), else "build". Pure.
+	 * else null. Its subject is the waiting item in a stage wait's words ({@link #waitSubject}; WORDING-3), never cut out of Architect's say. Pure.
 	 */
+	static @org.jspecify.annotations.Nullable String capStageWait(@org.jspecify.annotations.Nullable ItemWait w, @org.jspecify.annotations.Nullable String role,
+		com.google.gson.@org.jspecify.annotations.Nullable JsonObject ext, String itemKey, @org.jspecify.annotations.Nullable String plan, String fallback, String settlementId,
+		MaterialRequests.TakeUp how) {
+		// (WORDING-3) the waiting item in the stage wait's words, never the typed part (Architect's falls back to the blocker's)
+		return w == null || !w.capped() ? null : capStageWait(w, waitSubject(role, ext, itemKey, plan, fallback), settlementId, how);
+	}
+
+	/** {@link #capStageWait} with its subject already in words ({@code part}; blank: "build"). Pure. */
 	static @org.jspecify.annotations.Nullable String capStageWait(@org.jspecify.annotations.Nullable ItemWait w, @org.jspecify.annotations.Nullable String part,
 		String settlementId, MaterialRequests.TakeUp how) {
 		if (w == null || !w.capped()) return null;
-		String what = part == null || part.isBlank() ? "build" : Character.toLowerCase(part.charAt(0)) + part.substring(1);
+		String said = part == null ? "" : subjectWords(part);
+		String what = said.isBlank() ? "build" : Character.toLowerCase(said.charAt(0)) + said.substring(1);
 		// (LIFT-S, Architect LCAP-Q1) held by its lot's own cap (capScope "lot:<id>"): its limit, not what the player approved for the town
 		if (MaterialRequests.capLot(w.capScope()) != null) return MaterialRequests.lotOverCapWords(what, settlementId, w.over(), w.moreUnits(), how,
 			MaterialRequests.capBoth(w.capScope()));

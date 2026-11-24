@@ -78,8 +78,8 @@ class StageWaitWordsTest {
 	void aRoleOrTheItemsOwnPartIsTheSubject() {
 		var e = ext("{\"steward_mc:role\":\"fishers' cottage\",\"architect_mc:waitsFor\":{\"target\":\"r2\",\"part\":\"street_e\"}}");
 		assertEquals("fishers' cottage", SettlementRunner.waitSubject("fishers' cottage", e, "lot:cottage_1", PLAN, "Castle Walls"));
-		// a road item names itself (its own part), as before
-		assertEquals("street w", SettlementRunner.waitSubject(null, ext("{\"architect_mc:part\":\"street_w\",\"architect_mc:waitsFor\":{\"target\":\"c1\",\"part\":\"town\"}}"),
+		// a road item names itself (its own part): a street by its side (WORDING-3: was "street w")
+		assertEquals("west street", SettlementRunner.waitSubject(null, ext("{\"architect_mc:part\":\"street_w\",\"architect_mc:waitsFor\":{\"target\":\"c1\",\"part\":\"town\"}}"),
 			"road:street_w", PLAN, "Castle Walls"));
 		// a tile over several parts: its first
 		assertEquals("Curtain wall", SettlementRunner.waitSubject(null, ext("{\"architect_mc:parts\":[\"curtain_wall\",\"river\"],\"architect_mc:waitsFor\":{\"target\":\"r9\","
@@ -91,5 +91,91 @@ class StageWaitWordsTest {
 		assertEquals("street", SettlementRunner.waitSubject(null, ext("{\"architect_mc:waitsFor\":{\"target\":\"c1\",\"part\":\"town\"}}"), "street", PLAN, "Castle Walls"));
 		assertEquals("north spur", SettlementRunner.waitSubject(null, ext("{\"architect_mc:waitsFor\":{\"target\":\"c1\",\"part\":\"town\"}}"), "road:north_spur", PLAN,
 			"Castle Walls"));
+	}
+
+	/**
+	 * (WORDING-3) batch 097's two quarters (fixtures/strange-asks/plans/old_new_town.json, its zone and districts, lots cut) plus a district with no label
+	 * ({@code b}), one labelled by id ({@code d2}) and a second zone.
+	 */
+	static final String DPLAN = "{\"zones\":[{\"id\":\"town\",\"label\":\"Two Quarters on the River and Hill\",\"program\":{\"districts\":["
+		+ "{\"id\":\"old_quarter\",\"label\":\"Old riverside quarter\",\"lots\":[{\"id\":\"tavern_1\",\"type\":\"tavern\",\"label\":\"old town hall\"}]},"
+		+ "{\"id\":\"b\",\"lots\":[]},{\"id\":\"d2\",\"label\":\"the river district\",\"lots\":[]}]}},"
+		+ "{\"id\":\"z2\",\"label\":\"Hill quarter\",\"program\":{\"lots\":[]}}]}";
+
+	@Test
+	void aRoadIsNamedAsAPlayerWouldNeverByItsId() {
+		// a district's street, its own part the road id: was "The old quarter street w waits for the Two Quarters on the River and Hill to be built."
+		var e = ext("{\"architect_mc:part\":\"old_quarter_street_w\",\"architect_mc:waitsFor\":{\"target\":\"c7\",\"part\":\"town\",\"waiter\":\"road old_quarter_street_w\"}}");
+		String what = SettlementRunner.waitSubject(null, e, "road:old_quarter_street_w", DPLAN, "Two Quarters");
+		assertEquals("west street of the Old riverside quarter", what);
+		assertEquals("The west street of the Old riverside quarter waits for the Two Quarters on the River and Hill to be built.", SettlementRunner.stageWait(STAGE, what,
+			"Two Quarters on the River and Hill"));
+		// a road waiter only ("road <id>", Architect's waitsFor.waiter): was "road b street e"; a district with no label: "district b"
+		assertEquals("east street of district b", SettlementRunner.waitSubject(null, ext("{\"architect_mc:waitsFor\":{\"target\":\"c7\",\"part\":\"town\","
+			+ "\"waiter\":\"road b_street_e\"}}"), "road:b_street_e", DPLAN, "Two Quarters"));
+		// nothing but the key: was "street"; the id as a part: was "road b street w"
+		assertEquals("west street of district b", SettlementRunner.waitSubject(null, ext("{}"), "road:b_street_w", DPLAN, "Two Quarters"));
+		assertEquals("west street of district b", MaterialRequests.partWords(DPLAN, "road_b_street_w", "Two Quarters"));
+		// the street flag (Architect S-FL-5) names its district before the id does
+		assertEquals("east street of the Old riverside quarter", SettlementRunner.waitSubject(null, ext("{\"architect_mc:part\":\"street_e\",\"architect_mc:street\":"
+			+ "{\"zone\":\"town\",\"district\":\"old_quarter\"}}"), "road:street_e", DPLAN, "Two Quarters"));
+		// a second zone's street (prefix z2_) by the zone's label; a free layout's avenue and ring
+		assertEquals("west street of the Hill quarter", MaterialRequests.idWords(DPLAN, null, "z2_street_w"));
+		assertEquals("avenue 1 of the Old riverside quarter", MaterialRequests.idWords(DPLAN, null, "old_quarter_street_a1"));
+		assertEquals("ring street", MaterialRequests.idWords(DPLAN, null, "street_ring"));
+		// a street lamp is not a street: one rule reads only a street's own names
+		assertEquals("props street lamp", MaterialRequests.idWords(DPLAN, null, "props_street_lamp"));
+	}
+
+	@Test
+	void aDistrictIsNamedByItsOwnName() {
+		// what a part waits on, a plan district by id: was "d2" ("The Corner wall tower waits for the d2 to be built.")
+		assertEquals("the river district", MaterialRequests.partWords(DPLAN, "d2", "Two Quarters"));
+		assertEquals("The Corner wall tower waits for the river district to be built.", SettlementRunner.stageWait(STAGE, "Corner wall tower",
+			MaterialRequests.partWords(DPLAN, "d2", "Two Quarters")));
+		assertEquals("Old riverside quarter", MaterialRequests.partWords(DPLAN, "old_quarter", "Two Quarters"));
+		// no label: "district b", never "b"
+		assertEquals("district b", MaterialRequests.partWords(DPLAN, "b", "Two Quarters"));
+		// a materials line says the same subject
+		assertEquals("The west street of district b waits for materials: 2 iron door. They go in the stockpile.", MaterialRequests.waitWords(
+			SettlementRunner.waitSubject(null, ext("{}"), "road:b_street_w", DPLAN, "Two Quarters"), "2 iron door", MaterialRequests.Pile.UNREAD, ""));
+	}
+
+	static final SettlementRunner.ItemWait CAPPED = new SettlementRunner.ItemWait("bill_cap", "c4", java.util.List.of(java.util.Map.entry("minecraft:observer", 3)), 0,
+		"region", 2);
+
+	@Test
+	void aCapWaitSaysTheSameSubjectAsAStageWait() {
+		// the typed part fell back to the blocker's (curtain_wall): the cap line said "The curtain wall has stopped" for the wall tower
+		var e = ext("{\"architect_mc:lot\":\"tower_1\",\"architect_mc:waitsFor\":{\"target\":\"c161\",\"part\":\"curtain_wall\",\"waiter\":\"lot tower_1\"}}");
+		String capped = SettlementRunner.capStageWait(CAPPED, null, e, "lot:tower_1", PLAN, "Castle Walls", "set_1", MaterialRequests.TakeUp.UNDO);
+		assertTrue(capped.startsWith("The corner wall tower has stopped: "), capped);
+		String what = SettlementRunner.waitSubject(null, e, "lot:tower_1", PLAN, "Castle Walls");
+		assertTrue(SettlementRunner.stageWait(STAGE, what, "Curtain wall").startsWith("The Corner wall tower waits"), "the same words, a sentence's case aside");
+		// a road: its words, never its id or "street"
+		var r = ext("{\"architect_mc:part\":\"old_quarter_street_w\",\"architect_mc:waitsFor\":{\"target\":\"c7\",\"part\":\"town\"}}");
+		assertTrue(SettlementRunner.capStageWait(CAPPED, null, r, "road:old_quarter_street_w", DPLAN, "Two Quarters", "set_1", MaterialRequests.TakeUp.UNDO)
+			.startsWith("The west street of the Old riverside quarter has stopped: "));
+		// a lot's role and the article rule as a stage wait's
+		assertTrue(SettlementRunner.capStageWait(CAPPED, "lot gatehouse 1", e, "lot:gatehouse_1", PLAN, "Castle Walls", "set_1", MaterialRequests.TakeUp.UNDO)
+			.startsWith("The gatehouse 1 has stopped: "));
+		assertNull(SettlementRunner.capStageWait(STAGE, null, e, "lot:tower_1", PLAN, "Castle Walls", "set_1", MaterialRequests.TakeUp.UNDO), "not a cap wait");
+	}
+
+	@Test
+	void aSubjectWithNoNameIsTheBuildNeverEmpty() {
+		for (String key : new String[] {"", "road:", "tile:", "road: "}) {
+			String what = SettlementRunner.waitSubject(null, ext("{}"), key, null, "Castle Walls");
+			assertEquals("build", what, "key \"" + key + "\"");
+			assertEquals("The build waits for an earlier part to be built.", SettlementRunner.stageWait(STAGE, what, null));
+			assertTrue(SettlementRunner.capStageWait(CAPPED, null, ext("{}"), key, null, "Castle Walls", "set_1", MaterialRequests.TakeUp.UNDO).startsWith("The build has stopped"));
+		}
+		// a blank waiter or part is no name: the key names it
+		assertEquals("west street", SettlementRunner.waitSubject(null, ext("{\"architect_mc:part\":\" \",\"architect_mc:waitsFor\":{\"waiter\":\"road \"}}"), "road:street_w",
+			null, "Castle Walls"));
+		assertEquals("build", MaterialRequests.idWords(null, null, "  "));
+		assertEquals("build", MaterialRequests.idWords(null, null, "road "));
+		// an unreadable plan: the street's words from its id alone
+		assertEquals("north street of district zz", MaterialRequests.idWords("not json", null, "zz_street_n"));
 	}
 }
