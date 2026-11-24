@@ -150,3 +150,46 @@ every 60 s, 10 times, then said once (`SettlementRunner.heldStep`). The undo hel
 - **Not built:** speaking during a group's or region's `removalWait` (silent until it stops); a growth's revision event (`revisionId`)
   saying its refund.
 - **TXN-S:** `Stockpiles.addCrate` and MaterialRequests words beyond `RefusalWords`, and the e2e conservation sums with owed (OVF-S3).
+
+## Fix round (speed rule 4) for batch 100's GPT review: WIP, stopped for the night (2026-11-23)
+**Not finished.** Stopped on Noah's word mid-run. The final GPT pass has **not** run, and neither has the hall tool. Logs are in `logs/fix/`.
+
+- **P1 (held revision undos waiting indefinitely): fixed** (6011b27b).
+  - `Undo.asking` bounds every removal Steward awaits. Past `answerBoundMs` (10 min, the held cancel's 60 s x 10; dev op `undoBound`
+    shortens it) the ask fails on the server thread with `SiteBusy.Unanswered`, which every caller reads as decided and held: its held
+    note saved, the lock released, "under way" said once.
+  - The future completes once, so Architect's late answer is dropped (logged only). The growth sweep's reconcile logs the removal once
+    and now says `Undone: "<entry>" finished by itself`.
+  - VillageSweep's direct region remove now goes through the bound.
+  - A held growth take-up saves its note (`undo:<growth tag>`) before the release.
+  - The fake's held revision undo stays pending, as 0.91.0's does.
+  - Units 1007/1007, full `./gradlew build`.
+  - Red-again (bound disabled): the growth held, crash-point, joined re-ask and region rows went red. Removing the growth note: the
+    growth held and crash-point rows went red.
+- **P2 FKC1: fixed** (14b7cfbd). Always checked; the saved ledger's custody from disk, or an all-onDisk dev view; missing evidence FAILs.
+  Red-again: the FKC1 test.
+- **P2 FKC0: fixed** (14b7cfbd).
+  - `fkc0Abort` requires an answer, removed false with the hook's blockers, and the containers non-null and equal before and after.
+  - The old read was always null: halls get their geometry from `hallCells`. The probe passes n 0.
+  - Red-again: the FKC0 test. **Not run in game** (hall tool not run).
+- **P2 words judge: fixed in the judge** (14b7cfbd). `heldWords(text, expect)` FAILs without the operation's own line, and the e2e
+  judges from the relaunch offset. npm 334/334. Red-again: the words test.
+- **Batch 100's `undo while waiting said` FAIL: a separate cause** (1ed32bfd). It was an e2e read race, not the P1 path: Architect
+  answered in 1 s, and Steward logged `set_2: Refunded: ...`, but the judge read the log before the line landed. It now waits up to 30 s.
+  Passed in this round's run.
+- **In-game** `stub --clients 2 --ports 9130,9132 --stagger 120 --only undo,revert,update,supplied-growth,survival`: SIGTERMed partway,
+  277 ok and 3 rows FAILed, all of them word checks:
+  - **New P1 row, state:**
+    - At the bound, not busy (state probe), held note saved, revision UNDOING, nothing logged.
+    - After the halt, restart and lifted pause: UNDONE, one entry, and back = drawn once (judge ok).
+  - **Its two word checks FAILed:** "said at the bound" and the post-restart words.
+  - **`restart mid-undo T4 words` FAILed:** `/Undone: "..." finished by itself/` never found.
+  - **Likely cause, not verified:** those lines don't reach chat. The undo command's lines go to its source (logged `<id>: ...`), and
+    the sweep's go through `StewardVoice` (bubble only). heldWords counts only `[CHAT]` lines.
+  - Restart mid-cancel words passed.
+
+**Left:**
+- Make the word checks match where those lines are actually said (the `<id>: ` server lines, or a chat send for the sweep's line), then
+  rerun `--only supplied-growth` (failing flows only) and the rest of the run.
+- Hall tool: `sort-crash --version 2` and the survival step (FKC0, FKC1).
+- The final GPT pass (rule 4), then gitleaks.
