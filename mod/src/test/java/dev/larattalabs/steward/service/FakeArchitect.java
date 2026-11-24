@@ -650,7 +650,9 @@ final class FakeArchitect {
 			r.busy = null;
 			if (r.landAt.containsKey(toPosition)) r.setLand(r.landAt.get(toPosition));
 		};
-		if (undoAnswer == Answer.HOLD) {
+		// (T4R-PIN fix round, batch-100 P1) Architect 0.91.0's revision undo whose stage is decided and held (Revisions' driver ~1790) never fails the
+		// call: it waits for the stage, the region busy and the suffix UNDOING, its future pending until the stage finishes (complete); as HOLD
+		if (undoAnswer == Answer.HOLD || undoAnswer == Answer.HELD_DECIDED) {
 			r.busy = "undoing to " + toPosition;
 			suffix.forEach(v -> v.state = "UNDOING");
 			var f = new CompletableFuture<RemoveResult>();
@@ -659,7 +661,6 @@ final class FakeArchitect {
 			return f;
 		}
 		if (undoAnswer == Answer.BLOCKED && undoWaits != null) suffix.forEach(v -> { v.state = "UNDOING"; v.waiting = undoWaits; v.removalStopCause = undoWaitCause; });
-		if (undoAnswer == Answer.HELD_DECIDED) suffix.forEach(v -> v.state = "UNDOING");
 		return answer(undoAnswer, apply);
 	}
 

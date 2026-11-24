@@ -106,10 +106,27 @@ public final class SiteBusy {
 		}
 	}
 
+	/**
+	 * (T4R-PIN fix round, batch-100 P1) Steward's own answer for a removal Architect has not answered within {@code Undo.answerBoundMs}: Architect 0.91.0
+	 * leaves a revision undo's future pending while a stage's undo is decided and held (it waits for that stage, never failing the call), so a hold that
+	 * never resolves would otherwise keep the settlement busy for good. Read as {@link Kind#DECIDED} with no place: under way, finishing by itself
+	 * ({@code RemovalFinished}, the sweeps or the next start finish it); Architect's later answer is dropped (logged only), so nothing is said or logged
+	 * twice. Never Architect's text.
+	 */
+	public static final class Unanswered extends RuntimeException {
+		public Unanswered(long ms) {
+			super("no answer from Architect in " + ms + " ms: taken as under way");
+		}
+	}
+
+	/** The hold Steward reads a removal Architect has not answered within the bound as (decided, no place named). */
+	static final Held UNANSWERED = new Held(Kind.DECIDED, null, null, false);
+
 	/** {@code siteBusy(err)}: the hold in a failed future's cause chain ({@code CompletionException} wraps it), {@link Held#NONE} for anything else. */
 	public static Held of(@Nullable Throwable err) {
 		for (Throwable t = err; t != null; t = t.getCause() == t ? null : t.getCause()) {
 			if (t instanceof ArchitectRefused r) return of(r);
+			if (t instanceof Unanswered) return UNANSWERED;
 		}
 		return Held.NONE;
 	}

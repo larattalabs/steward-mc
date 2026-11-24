@@ -386,7 +386,7 @@ public final class Growths {
 	 * {@code done(false)}. A take-up refused {@code held(other)} (nothing changed) is asked again a moment later ({@link Undo#asking}).
 	 */
 	public static void undo(MinecraftServer server, String owner, Ref ref, Consumer<String> say, Consumer<@Nullable Boolean> done,
-		Consumer<dev.larattalabs.architect.api.RemoveResult> result, @Nullable Runnable onHeld) {
+		Consumer<dev.larattalabs.architect.api.RemoveResult> result, @Nullable Consumer<SiteBusy.Held> onHeld) {
 		var regions = ArchitectAccess.api().regions();
 		Decision d = decide(regions.get(ref.region()), ref.rid(), ArchitectAccess.api().sites(server));
 		switch (d.step()) {
@@ -428,9 +428,11 @@ public final class Growths {
 			var hold = SiteBusy.of(err);
 			if (hold.decided()) {
 				Steward.LOGGER.info("undo growth {} of {} is decided and held: {}", ref.tag(), owner, SettlementRunner.message(err));
+				// (T4R-PIN fix round) the caller's held note saved and its busy mark released first, then said once (also when Steward's bound, not
+				// Architect, read it as under way: SiteBusy.Unanswered)
+				if (onHeld != null) onHeld.accept(hold);
 				if (HELD_SAID.add(ref.tag())) say.accept(RemovalStops.growthUnderWay(hold));
-				if (onHeld != null) onHeld.run();
-				else done.accept(false);
+				if (onHeld == null) done.accept(false);
 				return;
 			}
 			if (err == null && r.removed()) { result.accept(r); done.accept(true); return; }

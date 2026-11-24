@@ -180,6 +180,24 @@ public final class ModuleDev {
 			case "env" -> {
 				return CompletableFuture.completedFuture(envJson(env(true, false)));
 			}
+			case "undoBound" -> {
+				// (T4R-PIN fix round, TEST) Steward's answer bound on a removal it awaits (Undo.asking), shortened for the e2e's held-undo row; ms 0: the
+				// default (10 min); back to it when the world stops
+				JsonObject a = new JsonObject();
+				a.addProperty("was", dev.larattalabs.steward.service.Undo.devBound(req.has("ms") ? req.get("ms").getAsLong() : 0));
+				a.addProperty("ms", req.has("ms") && req.get("ms").getAsLong() > 0 ? Math.max(1000, req.get("ms").getAsLong()) : 600_000);
+				return CompletableFuture.completedFuture(a);
+			}
+			case "undoBusy" -> {
+				// (T4R-PIN fix round, TEST) whether Steward counts the settlement busy (an undo or a runner's take-up running): a state probe, not a log line
+				JsonObject a = new JsonObject();
+				String sid = req.get("id").getAsString();
+				return CompletableFuture.supplyAsync(() -> {
+					a.addProperty("undoing", dev.larattalabs.steward.service.Undo.busy(sid));
+					a.addProperty("busy", dev.larattalabs.steward.service.SettlementRunner.busy(sid));
+					return a;
+				}, server);
+			}
 			case "byKey" -> {
 				String owner = str(req, "owner", ModuleInstalls.CATALOG_OWNER);
 				return ModuleInstalls.byKey(req.get("key").getAsString(), owner).thenApply(o -> {

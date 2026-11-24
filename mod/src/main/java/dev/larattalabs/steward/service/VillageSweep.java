@@ -294,6 +294,9 @@ public final class VillageSweep {
 						if (Undo.complete(s.id(), named.get(), new Growths.Ref(town.get().id(), r.rid()), Map.of())) {
 							Steward.LOGGER.info("{}: growth {} was taken up by Architect after a restart: its removal logged", s.id(), tag);
 							MaterialRequests.forgetIfBuilt(town.get().id());
+							// (T4R-PIN fix round) said once, only by the call that logged it (reconcileDue read it not completed on this fresh read, on the
+							// server thread): a take-up that finished with no answer reaching Steward (a restart, a hold, Steward's answer bound)
+							say(server, s.id(), finishedLine(named.get()));
 						} else Steward.LOGGER.warn("{}: growth {}'s removal could not be logged; tried again", s.id(), tag);
 					}
 					continue;
@@ -350,6 +353,20 @@ public final class VillageSweep {
 			}
 		}
 		return false;
+	}
+
+	/** (T4R-PIN fix round) Where the sweep's lines go in a test (null: the world's voice). */
+	static java.util.function.@org.jspecify.annotations.Nullable BiConsumer<String, String> testVoice;
+
+	private static void say(@org.jspecify.annotations.Nullable MinecraftServer server, String id, String line) {
+		var t = testVoice;
+		if (t != null) t.accept(id, line);
+		else if (server != null) StewardVoice.say(server, id, line);
+	}
+
+	/** (T4R-PIN fix round) What the growth sweep says when it logs a take-up Architect finished with no answer reaching Steward. Pure. */
+	static String finishedLine(Settlement.LogEntry placed) {
+		return "Undone: \"" + placed.text() + "\" finished by itself, the land restored.";
 	}
 
 	/**
@@ -478,9 +495,16 @@ public final class VillageSweep {
 			// the settlement is busy while the region is taken up (Undo.region marks it so too); its answer on the server thread, this world's only
 			Undo.mark(s.id(), true);
 			int session = Session.current();
-			ArchitectAccess.api().regions().remove(regionId, new RemoveOptions(false, s.owner())).whenComplete((r, err) -> ArchitectAccess.onServer(server, () -> {
+			// (T4R-PIN fix round) through Undo.asking: its one answer bound, so a removal Architect never answers can't keep the settlement marked busy
+			Undo.asking(server, () -> ArchitectAccess.api().regions().remove(regionId, new RemoveOptions(false, s.owner()))).whenComplete((r, err) -> ArchitectAccess.onServer(server, () -> {
 				Undo.mark(s.id(), false);
 				if (!Session.is(session) || SettlementRunner.worldStopped(err)) { done.accept(null); return; }
+				if (SiteBusy.of(err).decided()) {
+					// under way (Architect's hold, or no answer within the bound): the next sweep finds its tombstone
+					Steward.LOGGER.info("village region {} of {} is being taken up (decided, held or unanswered): looked at again later", regionId, s.id());
+					done.accept(false);
+					return;
+				}
 				boolean ok = err == null && r.removed();
 				if (!ok) Steward.LOGGER.warn("village region {} of {} could not be taken up yet (tried again at the next start): {}", regionId, s.id(),
 					err != null ? err.toString() : r.blockers());

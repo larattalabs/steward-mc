@@ -234,7 +234,8 @@ public final class SettlementRunner {
 		// an answer that never comes is settled by looking the realise up by its key (settleLostRealise)
 		if (r != null && r.state != null && r.state.phase().terminal() && r.queueInFlight) r.settleLostRealise(System.currentTimeMillis());
 		return (r != null && (r.state == null || !r.state.phase().terminal() || r.queueInFlight)) || Districts.busy(settlementId) || Undo.busy(settlementId) || PendingOffers.busy(settlementId)
-			|| ArchitectApi.get().regions().list("steward_mc:settlement/" + settlementId).stream()
+			// (T4R-PIN fix round) through ArchitectAccess (exactly ArchitectApi.get() in production), so the growth sweep's reconcile is driven by unit tests
+			|| ArchitectAccess.api().regions().list("steward_mc:settlement/" + settlementId).stream()
 				.anyMatch(v -> v.state() == dev.larattalabs.architect.api.RegionState.REMOVING);
 	}
 
@@ -4891,7 +4892,7 @@ public final class SettlementRunner {
 			var saved = Settlements.log(settlement.id(), new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.NOTE, "The addition was not placed ("
 				+ why + "); the town's change " + ref.tag() + " stands with nothing of it placed: " + d.why(), List.of()));
 			if (saved.ok()) end.run();
-		}, answer::set, () -> {
+		}, answer::set, h -> {
 			// (T4S-PRE) decided and held (said once by Growths.undo): not refused; the next pass reads the revision again (a re-ask joins it)
 			growthTakingUp = false;
 		});

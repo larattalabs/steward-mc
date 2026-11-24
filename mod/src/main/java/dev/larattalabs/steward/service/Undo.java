@@ -24,7 +24,7 @@ public final class Undo {
 	private static final java.util.Set<String> UNDOING = new java.util.HashSet<>();
 
 	static {
-		net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STOPPING.register(s -> UNDOING.clear());
+		net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STOPPING.register(s -> { UNDOING.clear(); Undo.answerBoundMs = Undo.ANSWER_BOUND_MS; });
 	}
 
 	public static boolean busy(String settlementId) {
@@ -71,8 +71,34 @@ public final class Undo {
 	static java.util.function.Consumer<Runnable> later = LATER;
 
 	/**
+	 * (T4R-PIN fix round, batch-100 P1, C14) How long Steward waits for Architect's answer to a removal it asked ({@link #asking}) before it takes the
+	 * removal as under way: 10 minutes (the held cancel's 60 s x 10). Architect 0.91.0 leaves a revision undo's future pending while one of its stages is
+	 * decided and held, so an unbounded wait kept {@code UNDOING} or a runner's take-up mark set for good. Every normal undo answers in seconds; the dev
+	 * hook {@code /steward dev module {op: undoBound}} shortens it for a test (back to the default when the world stops).
+	 */
+	static final long ANSWER_BOUND_MS = 600_000;
+	static volatile long answerBoundMs = ANSWER_BOUND_MS;
+	/** Runs the bound's check after its delay (tests run it when they choose). */
+	static final java.util.function.BiConsumer<Long, Runnable> BOUND_LATER = (ms, r) -> CompletableFuture.delayedExecutor(ms,
+		java.util.concurrent.TimeUnit.MILLISECONDS).execute(r);
+	static java.util.function.BiConsumer<Long, Runnable> boundLater = BOUND_LATER;
+
+	/** (T4R-PIN fix round) The dev hook's bound, set for a test: at least 1 s; answers the one it replaced. */
+	public static long devBound(long ms) {
+		long was = answerBoundMs;
+		answerBoundMs = ms <= 0 ? ANSWER_BOUND_MS : Math.max(1000, ms);
+		return was;
+	}
+
+	/**
 	 * {@code ask}'s removal, asked again a moment later while Architect answers SITE_BUSY {@code held(other)}, at most {@link #OTHER_TRIES} times and only
 	 * in this world session; any other answer (held(decided) included) is the call's. On the server thread.
+	 * <p>
+	 * (T4R-PIN fix round, batch-100 P1) The one bound on every removal Steward awaits: an ask Architect has not answered within {@link #answerBoundMs}
+	 * fails, on the server thread, with {@link SiteBusy.Unanswered}, which every caller reads as decided and held ({@link SiteBusy#of}): its held note
+	 * saved, its busy mark released, "under way" said once. Whichever comes first wins ({@code out} completes once): Architect's later answer is dropped,
+	 * logged only, and the removal is finished by what finishes a held one ({@code RemovalFinished}, the growth sweep's reconcile, SD2's sweep, the
+	 * next start), each on saved state, once.
 	 */
 	static CompletableFuture<RemoveResult> asking(@org.jspecify.annotations.Nullable MinecraftServer server, java.util.function.Supplier<CompletableFuture<RemoveResult>> ask) {
 		return asking(server, ask, OTHER_TRIES, Session.current());
@@ -81,7 +107,21 @@ public final class Undo {
 	private static CompletableFuture<RemoveResult> asking(@org.jspecify.annotations.Nullable MinecraftServer server, java.util.function.Supplier<CompletableFuture<RemoveResult>> ask,
 		int left, int session) {
 		CompletableFuture<RemoveResult> out = new CompletableFuture<>();
-		ask.get().whenComplete((r, err) -> {
+		CompletableFuture<RemoveResult> asked = ask.get();
+		long bound = answerBoundMs;
+		if (bound > 0 && !asked.isDone()) boundLater.accept(bound, () -> ArchitectAccess.onServer(server, () -> {
+			// only this ask's own wait: one answered meanwhile (a held(other) retry then has its own bound) is never cut short
+			if (asked.isDone() || !Session.is(session)) return;
+			if (out.completeExceptionally(new SiteBusy.Unanswered(bound)))
+				Steward.LOGGER.info("a removal got no answer from Architect in {} ms: taken as under way (finished by RemovalFinished, a sweep or the next start)", bound);
+		}));
+		asked.whenComplete((r, err) -> {
+			if (out.isDone()) {
+				// the bound came first: this late answer is never acted on (no second log, refund line or state change); what finishes a held removal does
+				Steward.LOGGER.info("a removal answered after Steward's bound (left to RemovalFinished, the sweeps or the next start): {}",
+					err != null ? SettlementRunner.message(err) : "removed " + r.removed());
+				return;
+			}
 			if (err != null && left > 1 && Session.is(session) && SiteBusy.of(err).other()) {
 				Steward.LOGGER.info("a removal is held by another change (held(other)); asked again ({} left)", left - 1);
 				later.accept(() -> ArchitectAccess.onServer(server, () -> asking(server, ask, left - 1, session).whenComplete((r2, e2) -> {
@@ -906,12 +946,23 @@ public final class Undo {
 				say.accept("Undone: " + whose + " change is taken up, the land restored.");
 			} else say.accept("Run /steward undo " + s.id() + " again once it is clear.");
 			whenDone.accept(ok);
-		}, answer::set, () -> {
+		}, answer::set, h -> {
+			// (T4R-PIN fix round) its held note saved before the busy mark is released (persist, then release); the growth sweep's reconcile logs
+			// it once its revision reads UNDONE and says it then (VillageSweep), keyed by the growth's tag
+			noteHeld(s, growthHeldTag(ref), entry.text(), h);
 			UNDOING.remove(s.id());
 			if (whenHeld != null) whenHeld.run();
 			else whenDone.accept(false);
 		});
 		return true;
+	}
+
+	/**
+	 * (T4R-PIN fix round) The tag of a held growth take-up's note: {@code undo:} and the growth's own tag, so no reader of growth tags ({@code
+	 * Growths.completed}, the orphan notes, {@code revision:} readers) takes it for the growth.
+	 */
+	static String growthHeldTag(Growths.Ref ref) {
+		return "undo:" + ref.tag();
 	}
 
 	/**
