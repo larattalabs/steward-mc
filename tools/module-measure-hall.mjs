@@ -21,7 +21,7 @@ import { acquire as acquireSlot, release as releaseSlot } from './lib/slot-queue
 import { repairSidecarData } from './lib/ram-tmp.mjs';
 import { claimAnswerFile } from './lib/disk.mjs';
 import { checkCommand, savedOnDisk } from './lib/save-barrier.mjs';
-import { t4Gate, custodyAtHalt, custodyClear, reUndoAnswer, FKC0_HOOK } from './lib/t4-rows.mjs';
+import { t4Gate, custodyAtHalt, custodyClear, reUndoAnswer, fkc0Abort, FKC0_HOOK } from './lib/t4-rows.mjs';
 import { overflowGrew } from './lib/overflow.mjs';
 import { waitForPrograms } from './lib/helper-wait.mjs';
 
@@ -1775,7 +1775,8 @@ async function sortCrash() {
       const res = { point: c.point, savedCustody, state: rs, back: totalOf(back), consumed: totalOf(consumed), diff: minus(back, consumed), custody: F.custody ?? null, heldProvided: F.heldProvided ?? null, drops, slabs, overflowGrew: overflowGrew(B, F) };
       out.removal.push(res);
       const atHalt = custodyAtHalt(S, t4, totalOf);
-      if (c.point === 'FKC1') check(!atHalt.check || atHalt.ok, `9 ${c.point}: the custody (${json(savedCustody)}) was on disk at the halt${atHalt.check ? '' : ` (${atHalt.note})`}`, res);
+      // (T4R-PIN fix round, P2) evidence or FAIL: the saved ledger read from disk after the halt (no unchecked pass under T4)
+      if (c.point === 'FKC1') check(atHalt.ok, `9 ${c.point}: the custody (${json(savedCustody)}) was on disk at the halt (${atHalt.note})`, res);
       res.custodyLeft = custodyClear(F).left;
       check(rs === 'UNDONE' && same(back, consumed) && !res.overflowGrew && custodyClear(F).ok && !Object.keys(drops).length && (slabs.player ?? 0) === 0 && (slabs.entities ?? 0) === 0,
         `9 ${c.point}: after the restart the removal ends once (${rs}): back = consumed item for item (${totalOf(back)} = ${totalOf(consumed)}; off ${json(res.diff)}); no custody, provided custody or pending refund left; nothing dropped; no slab loose${res.overflowGrew ? `; ${res.overflowGrew}` : '; none to overflow'}`, res);
@@ -1798,7 +1799,8 @@ async function sortCrash() {
     }
     // ---- FKC0 (Architect's LC, S-M5-13): a removal failing after its custody take, a restart, a retry. Runs once the hook exists.
     const rest = [...grown].reverse().slice(removalPoints.length);
-    const hook = await call(FKC0_HOOK, { probe: true }, 10_000).then(() => true).catch(() => false);
+    // (T4R-PIN fix round) probed with n 0: the probe arms nothing (n defaults to 1, which would abort the next removal when FKC0 doesn't run)
+    const hook = await call(FKC0_HOOK, { probe: true, n: 0 }, 10_000).then(() => true).catch(() => false);
     // (T4S-PRE, T4 change 3) T4c ships the hook: on an Architect with removal_finished its absence is a failure, not a deferral
     if (!hook && t4) {
       out.fkc0 = `the hook ${FKC0_HOOK} is missing on an Architect with removal_finished (T4 change 3 ships it in T4c)`;
@@ -1810,14 +1812,22 @@ async function sortCrash() {
     } else if (rest.length) {
       const c = rest[0];
       const L0 = (await pile()).ledger;
-      await call('dev.removal.failAfterCustody', { site: c.site }, 10_000);
+      // (T4R-PIN fix round, P2) the hall's containers read before arming (its geometry from hallCells: growHalls' halls have none, so the old read
+      // was always null), and again after the abort
+      const hallH = (await hallCells(region, c.g.halls).catch(() => null))?.[0] ?? null;
+      const s0 = hallH ? await sortState(hallH).catch(() => null) : null;
+      await call('dev.removal.failAfterCustody', { n: 1 }, 10_000);
       const u = await call('dev.rv.undo', { region, toPosition: c.g.position - 1 }, 600_000).catch((e) => ({ error: String(e) }));
       await sleep(4000);
-      const s1 = await sortState(c.g.halls[0]).catch(() => null);
+      const s1 = hallH ? await sortState(hallH).catch(() => null) : null;
+      // (T4R-PIN fix round, P2) the expected abort (answered, not removed, the hook's blockers) and the containers as before, item for item; a
+      // timeout, a transport failure or a null read FAILs
+      const abort = fkc0Abort(u, s0 ? sumAll(s0) : null, s1 ? sumAll(s1) : null, totalOf);
+      check(abort.ok, `9 FKC0: the hook aborted the removal and its containers are restored (${abort.why}; ${refusal(u)})`, { u, before: s0 ? sumAll(s0) : null, after: s1 ? sumAll(s1) : null });
       // (T4S-PRE, T4 change 3) a txn removal aborted after its custody take is compensated before it retires: nothing left in the custody view
       if (t4) {
         const LF = (await pile()).ledger;
-        check(u.removed !== true && custodyClear(LF).ok, `9 FKC0 (T4): the aborted removal took nothing down (${refusal(u)}) and left no custody (${json(custodyClear(LF).left)})`);
+        check(abort.ok && custodyClear(LF).ok, `9 FKC0 (T4): the aborted removal took nothing down (${refusal(u)}) and left no custody (${json(custodyClear(LF).left)})`);
       }
       // reopen's dev.world.leave saves on stop (SAVEB: /save-all is dedicated-only, and cmd now throws on it)
       await reopen(home);

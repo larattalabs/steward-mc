@@ -42,8 +42,13 @@ export function afterDecision(states) {
   return { ok: true, why: seen.join(' > ') };
 }
 
-/** What a held, decided undo said, or a stop it must never say after a restart past the decision. -> { ok, why }. */
-export function heldWords(text) {
+/**
+ * What a held, decided undo said, or a stop it must never say after a restart past the decision. -> { ok, why }.
+ * (T4R-PIN fix round, batch-100 P2) `text` is the operation's own window (the log from the relaunch after its kill point, never `logSince(0)`), and
+ * `expect` the Steward lines that operation must say there (each a RegExp over the chat lines): a window without them is no proof and FAILs, so an
+ * unrelated chat line (`Saved the game`) never passes it.
+ */
+export function heldWords(text, expect = []) {
   // (T4R-PIN) only what was said to the player (the client log's chat lines): Architect's and Steward's own log lines name txns (`Txn event:
   // tx-9 ...`) and are never said
   const said = String(text ?? '').split('\n').filter((l) => l.includes('[CHAT]'));
@@ -52,7 +57,11 @@ export function heldWords(text) {
   const t = said.join('\n');
   const stop = /Undo stopped|could not be taken up|again once it is clear|held\(|tx-\d+/.exec(t);
   if (stop) return { ok: false, why: `a stop or Architect's text after the decision: "${stop[0]}"` };
-  return { ok: true, why: /Undo under way/.test(t) ? 'said as under way' : 'no stop said' };
+  const want = (Array.isArray(expect) ? expect : [expect]).filter((r) => r instanceof RegExp);
+  if (!want.length) return { ok: false, why: 'no expected Steward line given: nothing proves the window holds this operation' };
+  const missing = want.filter((r) => !r.test(t));
+  if (missing.length) return { ok: false, why: `the operation's own line was never said (${missing.map(String).join(', ')})` };
+  return { ok: true, why: `said ${want.map((r) => `"${r.exec(t)[0].slice(0, 80)}"`).join(', ')}; no stop` };
 }
 
 /**
@@ -67,19 +76,38 @@ export function reUndoAnswer(retry, txn) {
 }
 
 /**
- * The FKC1 "custody on disk at the halt" check (T4 change 2). Without T4 it reads the saved stockpile ledger's `custody`. With T4 custody lives in the txn
- * entry: the saved ledger may hold none, so the check is left to the dev view. TODO(T4c), shape stated by Architect 11-19: `dev.stockpile.ledger`
- * gains `custody: [{key, items, txnId, phase, savedGen, onDisk}]` and a top-level `confirmedGen` (onDisk = savedGen <= confirmedGen); assert every
- * entry's onDisk at the FKC1 halt. -> { check, ok, note }.
+ * The FKC1 "custody on disk at the halt" check (T4 change 2). -> { check, ok, note }; `check` is always true (T4R-PIN fix round, batch-100 P2: a missing
+ * proof FAILs, never passes unchecked). Evidence is read from disk after the JVM halt: the saved ledger's `custody` (Architect 0.91.0 keeps it there under
+ * T4 too: 164 items at the FKC1 halt in the 0.91.0 measurement). An Architect whose dev view states durability per entry (`custody: [{key, items,
+ * onDisk}]`, the T4c shape Architect stated 11-19; not in 0.91.0) also counts when every entry is onDisk. Neither: FAIL.
  */
-export function custodyAtHalt(savedLedger, txn, total) {
+export function custodyAtHalt(savedLedger, txn, total, devCustody = null) {
   const n = total(Object.values(savedLedger?.custody ?? {}).reduce((a, m) => {
     for (const [k, v] of Object.entries(m ?? {})) if (typeof v === 'number') a[k] = (a[k] ?? 0) + v;
     return a;
   }, {}));
-  if (!txn) return { check: true, ok: n > 0, note: `${n} in the saved ledger's custody` };
   if (n > 0) return { check: true, ok: true, note: `${n} in the saved ledger's custody` };
-  return { check: false, ok: true, note: "custody is in the txn entry under T4 (change 2), not the saved ledger: checked through the dev view" };
+  const view = Array.isArray(devCustody) ? devCustody : [];
+  if (txn && view.length && view.every((e) => e?.onDisk === true)) return { check: true, ok: true, note: `${view.length} custody entr${view.length === 1 ? 'y' : 'ies'} onDisk in the dev view` };
+  const why = txn && view.length ? `the dev view's custody not all onDisk (${view.filter((e) => e?.onDisk !== true).map((e) => e?.key ?? '?').join(', ')})` : 'no durable custody evidence';
+  return { check: true, ok: false, note: `nothing in the saved ledger's custody at the halt; ${why}` };
+}
+
+/**
+ * (T4R-PIN fix round, batch-100 P2) FKC0's abort, judged on Architect's answer and the world: the undo answered (no transport error, no timeout),
+ * not removed, its blockers naming the failAfterCustody hook; the hall's containers read before arming and after the abort, both read (a null read
+ * FAILs), and the same, item for item (the custody given back). -> { ok, why }.
+ */
+export function fkc0Abort(u, before, after, total) {
+  if (!u || u.error) return { ok: false, why: `the undo got no answer (${String(u?.error ?? 'none').slice(0, 120)}): a timeout or transport failure is not the abort` };
+  if (u.removed !== false) return { ok: false, why: `answered removed ${u.removed}: not the aborted removal` };
+  const blockers = (u.blockers ?? []).join('; ');
+  if (!/failAfterCustody/.test(blockers)) return { ok: false, why: `not the hook's abort (blockers: ${blockers.slice(0, 160) || 'none'})` };
+  if (before == null || after == null) return { ok: false, why: `the containers were not read (${before == null ? 'before' : 'after'}): nothing proves them restored` };
+  const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
+  const off = [...keys].filter((k) => (before[k] ?? 0) !== (after[k] ?? 0));
+  if (off.length) return { ok: false, why: `the containers changed: ${off.slice(0, 4).map((k) => `${k} ${before[k] ?? 0} > ${after[k] ?? 0}`).join(', ')}` };
+  return { ok: true, why: `aborted by the hook; the containers as before (${total(before)} items)` };
 }
 
 /**

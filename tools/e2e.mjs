@@ -5637,6 +5637,8 @@ async function suppliedGrowthFlow(mode = null) {
       await until(() => completion(tag), 300);
       await sleep(5000);
     };
+    /** (T4R-PIN fix round, P2) Where the game log stood at the last relaunch after a kill point: the window a restarted operation is judged in. */
+    let relaunchAt = 0;
     /** Arms Architect's kill point, runs {@code act}, waits for the JVM to halt and starts the client again (the world as the halt left it). */
     const killed = async (point, act) => {
       feeding = false;
@@ -5656,6 +5658,8 @@ async function suppliedGrowthFlow(mode = null) {
       const marker = re.test(logSince(0)) || (fs.existsSync(clientLog) && re.test(fs.readFileSync(clientLog, 'utf8').slice(clientAt)));
       dev = null;
       await sleep(4000);
+      // (T4R-PIN fix round, P2) the relaunch's own log (latest.log starts again: readSince then reads it whole)
+      relaunchAt = logSize();
       launch();
       await connect();
       await cmd('/architect survival on');
@@ -5670,7 +5674,8 @@ async function suppliedGrowthFlow(mode = null) {
      * growth's completion, reading its revision's state each second; then the revision never read PLACED again (a point before the decision aborts),
      * and nothing after the restart said a stop or Architect's text. Without the feature: a note, not red.
      */
-    const t4AfterDecision = async (lbl, tag) => {
+    // (T4R-PIN fix round, P2) `expect`: the Steward lines this operation must say after its relaunch (heldWords FAILs without them)
+    const t4AfterDecision = async (lbl, tag, expect) => {
       const gate = t4Gate(await devModule({ op: 'env' }).catch(() => null));
       if (!gate.run) { ok(`${lbl} T4 alias`, `skipped: ${gate.why}`); return until(() => completion(tag), 600); }
       const rid = Number(/:(\d+)$/.exec(tag)?.[1]);
@@ -5681,7 +5686,7 @@ async function suppliedGrowthFlow(mode = null) {
       await read();
       const dec = afterDecision(states);
       if (dec.ok) ok(`${lbl} T4 alias after the decision`, dec.why); else fail(`${lbl} T4 alias after the decision`, dec.why);
-      const words = heldWords(logSince(0));
+      const words = heldWords(logSince(relaunchAt), expect);
       if (words.ok) ok(`${lbl} T4 words`, words.why); else fail(`${lbl} T4 words`, words.why);
       return done;
     };
@@ -5735,7 +5740,8 @@ async function suppliedGrowthFlow(mode = null) {
       else if (g) {
         const spB = await ledger();
         const halted = await killed('RVU1+save', () => cmd(`/steward cancel ${id}`));
-        const done = halted && await t4AfterDecision(lbl, g.tag);
+        // the restored cancel ends once its take-up is done: said as cancelled
+        const done = halted && await t4AfterDecision(lbl, g.tag, [/Cancelled /]);
         if (!halted) fail(lbl, 'the kill point RVU1 was never reached');
         else if (!done) fail(lbl, `no completion 10 min after the restart; ${chatTail(0)}`);
         else await judge(lbl, g.tag, g.spStart, spB, (settlements().find((x) => x.id === id)?.log ?? []).find((e) => e.kind === 'PROJECT_PLACED' && e.siteGroup === g.tag)?.siteIds, 0);
@@ -5750,7 +5756,8 @@ async function suppliedGrowthFlow(mode = null) {
       if (g) {
         const spB = await ledger();
         const halted = await killed('RVU2+save', () => cmd(`/steward undo ${id}`));
-        const done = halted && await t4AfterDecision(lbl, g.tag);
+        // Architect resumes it; the growth sweep logs it and says it once (VillageSweep.finishedLine)
+        const done = halted && await t4AfterDecision(lbl, g.tag, [/Undone: "[^"]*" finished by itself/]);
         if (!halted) fail(lbl, 'the kill point RVU2 was never reached');
         else if (!done) fail(lbl, `no completion 10 min after the restart; ${chatTail(0)}`);
         else {
