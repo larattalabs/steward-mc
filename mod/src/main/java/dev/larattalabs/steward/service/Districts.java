@@ -640,12 +640,73 @@ public final class Districts {
 		takeUp(null, s, siteId, "test", say, done);
 	}
 
+	/** (TEST) {@link #takeUpAll} as reconcile runs it, the settlement marked laying meanwhile. */
+	static void takeUpAllForTest(Settlement s, List<String> ids, Consumer<String> say) {
+		LAYING.add(s.id());
+		takeUpAll(null, s, ids, say, () -> LAYING.remove(s.id()));
+	}
+
+	/**
+	 * (T4R-PIN P2, T4R-RETRY) What an unrecorded road is, in the steward's words, from its own role: never its id. Pure over {@code role} (the road's
+	 * {@code steward_mc:infra}, or null).
+	 */
+	static String unrecordedRoad(@Nullable String role) {
+		if (FOUNDING_ROLE.equals(role)) return "A road out to a new district was laid but never recorded";
+		if (LINK_ROLE.equals(role)) return "A road linking a district to the town was laid but never recorded";
+		return "A district road was laid but never recorded";
+	}
+
+	/** {@link #unrecordedRoad(String)} for a road read from Architect (its role unread: the general words). */
+	private static String unrecordedRoad(@Nullable MinecraftServer server, String siteId) {
+		return unrecordedRoad(roadRole(server, siteId));
+	}
+
+	/** A steward road's role ({@code steward_mc:infra}) as Architect has it now, or null (no such site, not a steward road, unreadable). */
+	private static @Nullable String roadRole(@Nullable MinecraftServer server, String siteId) {
+		try {
+			var v = ArchitectAccess.api().sites(server).get(siteId);
+			if (v.isEmpty() || !"road".equals(v.get().kind()) || v.get().ext() == null || !v.get().ext().has(INFRA) || !v.get().ext().get(INFRA).isJsonPrimitive()) return null;
+			return v.get().ext().get(INFRA).getAsString();
+		} catch (RuntimeException | LinkageError e) {
+			return null;
+		}
+	}
+
+	/** (T4R-RETRY) The key of a road take-up waiting behind a busy removal ({@link BusyRetries}). */
+	static String roadRetryKey(String settlementId, String siteId) {
+		return "road:" + settlementId + ":" + siteId;
+	}
+
+	/** Where a retried road take-up's lines go (the steward's voice; tests capture them). */
+	static java.util.function.BiConsumer<String, String> retrySay = Undo.VOICE;
+
+	/**
+	 * (T4R-RETRY, row 7) An unrecorded road refused as busy, taken up again by itself: only while it is still a steward road of the settlement that no
+	 * district records (else nothing; the reconcile decides). While the settlement is busy or another take-up runs for it, it waits again, counted.
+	 * Server thread.
+	 */
+	static void retryRoad(@Nullable MinecraftServer server, String settlementId, String siteId, SiteBusy.Held held) {
+		String key = roadRetryKey(settlementId, siteId);
+		var s = Settlements.store().get(settlementId);
+		if (s.isEmpty() || Settlements.disabled()) { BusyRetries.forget(key); return; }
+		boolean runnerBusy = BusyRetries.settlementBusy(settlementId);
+		if (LAYING.contains(settlementId) || runnerBusy) {
+			BusyRetries.wait(key, held, () -> retryRoad(server, settlementId, siteId, held), false);
+			return;
+		}
+		String role = roadRole(server, siteId);
+		boolean known = s.get().lands().districts().stream().anyMatch(d -> d.roads().stream().anyMatch(r -> r.siteId().equals(siteId)));
+		if (known || !(FOUNDING_ROLE.equals(role) || LINK_ROLE.equals(role))) { BusyRetries.forget(key); return; }
+		LAYING.add(settlementId);
+		takeUp(server, s.get(), siteId, unrecordedRoad(role), line -> retrySay.accept(settlementId, line), () -> LAYING.remove(settlementId));
+	}
+
 	private static void takeUpAll(MinecraftServer server, Settlement s, List<String> ids, Consumer<String> say, Runnable done) {
 		if (ids.isEmpty()) {
 			done.run();
 			return;
 		}
-		takeUp(server, s, ids.get(0), "A road (" + ids.get(0) + ") was laid but never recorded", say, () -> takeUpAll(server, s, ids.subList(1, ids.size()), say, done));
+		takeUp(server, s, ids.get(0), unrecordedRoad(server, ids.get(0)), say, () -> takeUpAll(server, s, ids.subList(1, ids.size()), say, done));
 	}
 
 	/** Removes a road the settlement does not record, says how that went, then runs {@code done}. */
@@ -653,26 +714,32 @@ public final class Districts {
 		// (batch-077 review P1-1, the same rule) never while settlements are disabled: the road stands unrecorded, and the next session's reconcile takes it up
 		if (Settlements.disabled()) {
 			Steward.LOGGER.warn("road {} of {} is not taken up: settlements are disabled this session (taken up at the next start)", siteId, s.id());
-			say.accept(why + ": settlements are disabled this session, so the road " + siteId + " stands until the next session.");
+			say.accept(why + ": settlements are disabled this session, so it stands until the next session.");
 			done.run();
 			return;
 		}
 		int session = Session.current();
+		String retryKey = roadRetryKey(s.id(), siteId);
 		Undo.asking(server, () -> ArchitectAccess.api().sites(server).remove(siteId, new RemoveOptions(false, s.owner()))).whenComplete((rr, e) -> {
 			if (!Session.is(session)) return;
+			// (T4R-RETRY) any answer but a busy one ends this take-up's wait and its count
+			if (!SiteBusy.of(e).busyAtAll() || SiteBusy.of(e).decided()) BusyRetries.forget(retryKey);
 			if (e == null && rr.removed()) say.accept(why + ": the road was taken up again.");
 			// (T4S-PRE) decided and held: it finishes by itself (the next reconcile finds it gone); not a failure, nothing to try again
 			else if (SiteBusy.of(e).decided()) {
 				Steward.LOGGER.info("road {} of {} is being taken up, decided and held: {}", siteId, s.id(), SettlementRunner.message(e));
-				say.accept(why + ": the road " + siteId + " is being taken up; " + RemovalStops.waitsFor(SiteBusy.of(e)) + ".");
+				say.accept(why + ": it is being taken up; " + RemovalStops.waitsFor(SiteBusy.of(e)) + ".");
 			} else if (SiteBusy.of(e).busyAtAll()) {
-				// (T4RD-S) another removal or change in the way: nothing began; the next reconcile takes it up
+				// (T4RD-S) another removal or change in the way: nothing began. (T4R-RETRY, row 7) taken up again by itself once that removal finishes
+				// (or its bounded timer); said once; past the bound the next reconcile takes it up
 				Steward.LOGGER.info("road {} of {} is not taken up yet (busy): {}", siteId, s.id(), SettlementRunner.message(e));
-				say.accept(RemovalStops.roadBusy(why, siteId, SiteBusy.of(e), RemovalStops.blocker(server, SiteBusy.of(e), s.owner())));
+				var h = SiteBusy.of(e);
+				var step = BusyRetries.wait(retryKey, h, () -> retryRoad(server, s.id(), siteId, h), false);
+				if (step.first()) say.accept(RemovalStops.roadBusy(why, h, RemovalStops.blocker(server, h, s.owner())));
 			} else {
 				// (raw-text) Architect's error or blockers are logged, never said (a road's removal has no typed cause)
 				Steward.LOGGER.info("road {} of {} was not taken up: {}", siteId, s.id(), e != null ? SettlementRunner.message(e) : String.join(", ", rr.blockers()));
-				say.accept(why + ", and the road " + siteId + " could not be taken up" + (e != null ? " just now" : ": " + RemovalStops.IN_THE_WAY)
+				say.accept(why + ", and it could not be taken up" + (e != null ? " just now" : ": " + RemovalStops.IN_THE_WAY)
 					+ ". It is tried again later.");
 			}
 			done.run();

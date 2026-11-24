@@ -166,7 +166,7 @@ public final class Undo {
 		return line -> {
 			sayTo.accept(line);
 			// any end of the undo: done, or stopped part way (what it took up before it stopped refunded too)
-			if (!line.startsWith("Undone") && !line.startsWith("Undo stopped")) return;
+			if (!line.startsWith("Undone") && !line.startsWith("Undo stopped") && !line.startsWith(RemovalStops.UNDO_WAITS)) return;
 			int over = Stockpiles.of(server, s).map(Undo::over).orElse(0);
 			String said = over > overBefore ? Stockpiles.overCapacityWords(over, s.id()) : null;
 			if (said != null) sayTo.accept(said);
@@ -198,6 +198,8 @@ public final class Undo {
 			return false;
 		}
 		final Settlement s = Settlements.store().get(given.id()).orElse(given);
+		// (T4R-RETRY) the player's own ask is the undo now: a retry waiting for this settlement is dropped, so one undo runs, never two
+		BusyRetries.forget(retryKey(s.id()));
 		Consumer<String> say = reportingOverCapacity(server, s, sayTo);
 		// a district region being built (or one whose build ended unresolved): the newest operation can't be told yet, unless it is that district's own
 		// region, recorded by the world-start sweep after its build ended (taking it up is what puts the district right)
@@ -273,7 +275,10 @@ public final class Undo {
 			return;
 		}
 		int session = Session.current();
-		asking(server, () -> sites.removeGroup(group, as)).whenComplete((r, err) -> {
+		var call = asking(server, () -> sites.removeGroup(group, as));
+		// (T4R-RETRY) while it waits on its ticket behind another removal: said once, in the steward's words
+		RemovalWaits.watch(server, s.owner(), () -> RemovalWaits.ofGroup(sites, group), call, say);
+		call.whenComplete((r, err) -> {
 			// the world closing mid-undo is not its outcome: what Architect finished is read again after the restart (the undo can be run again)
 			if (!Session.is(session) || SettlementRunner.worldStopped(err)) { UNDOING.remove(s.id()); return; }
 			var held = SiteBusy.of(err);
@@ -383,6 +388,8 @@ public final class Undo {
 		int session = Session.current();
 		chain.whenComplete((stop, err) -> {
 			if (!Session.is(session) || SettlementRunner.worldStopped(err)) { UNDOING.remove(s.id()); return; }
+			// (T4R-RETRY) any outcome but a busy stop ends this operation's wait and its count
+			if (!BUSY_STOP.equals(stop)) BusyRetries.forget(retryKey(s.id()));
 			if (HELD_STOP.equals(stop)) {
 				// decided and held: nothing logged now; the sites before it are logged with it once it finishes
 				noteHeld(s, entryTag(entry, heldSite[0]), entry.text(), heldHow[0]);
@@ -397,8 +404,15 @@ public final class Undo {
 			if (BUSY_STOP.equals(stop)) {
 				// (T4RD-S) the sites before it are logged as removed; the rest stand, said by the busy cause in the steward's words
 				String blocker = RemovalStops.blocker(server, heldHow[0], s.owner());
+				// (batch review 2) the intent is closed: nothing is in flight at Architect (a busy refusal began nothing), so no later removal by something
+				// else is taken for this undo; a retry saves its own intent before it asks again
 				if (txn) closeEntry(s, entry, RemovalStops.busyWhy(heldHow[0], blocker));
-				say.accept(RemovalStops.undoBusy(s.id(), removed.size(), ids.size(), heldHow[0], blocker));
+				// (T4R-RETRY, row 1) asked again by itself once the blocker's removal finishes (or its bounded timer): said once, and once more when it
+				// stops waiting
+				var held = heldHow[0];
+				var step = BusyRetries.wait(retryKey(s.id()), held, () -> retryChain(server, s.id(), entry, held), false);
+				if (step.gaveUp()) say.accept(RemovalStops.undoBusy(s.id(), removed.size(), ids.size(), held, blocker));
+				else if (step.first()) say.accept(RemovalStops.undoWaits(s.id(), removed.size(), ids.size(), held, blocker));
 				return;
 			}
 			// (raw-text) Architect's error and blockers are logged, never said: a site's removal has no typed cause, so the generic words
@@ -414,6 +428,64 @@ public final class Undo {
 				say.accept("Undone: removed " + Words.count(removed.size(), "site", "sites") + ", the land is restored.");
 			}
 		});
+	}
+
+	// ------------------------------------------------------------------ (T4R-RETRY) row 1: a site-by-site undo asked again by itself
+
+	/** The key of a settlement's waiting undo ({@link BusyRetries}): one undo per settlement waits, the newest the player asked. */
+	static String retryKey(String settlementId) {
+		return "undo:" + settlementId;
+	}
+
+	/** Where a retried undo's lines go (the steward's voice once a world runs; tests capture them). */
+	static final java.util.function.BiConsumer<String, String> VOICE = (id, line) -> {
+		var srv = BusyRetries.server();
+		if (srv != null) StewardVoice.say(srv, id, line);
+	};
+	static java.util.function.BiConsumer<String, String> retrySay = VOICE;
+
+	/**
+	 * (T4R-RETRY) A site-by-site undo that waited behind a busy site, asked again: only while {@code placed} is still the settlement's newest undoable,
+	 * unretired entry (else nothing is taken down, and a newer entry is said); while the settlement is busy (a build, an undo, a district being built) it
+	 * waits again, counted. The chain saves its own intent before it asks Architect (no intent, no removal); sites gone since read as removed and are
+	 * never logged twice ({@code notYetLogged}). Server thread.
+	 */
+	static void retryChain(@org.jspecify.annotations.Nullable MinecraftServer server, String settlementId, Settlement.LogEntry placed, SiteBusy.Held held) {
+		var found = Settlements.store().get(settlementId);
+		if (found.isEmpty() || Settlements.disabled()) { BusyRetries.forget(retryKey(settlementId)); return; }
+		Settlement s = found.get();
+		java.util.function.Consumer<String> say = line -> retrySay.accept(settlementId, line);
+		if (server != null) say = reportingOverCapacity(server, s, say);
+		boolean runnerBusy = BusyRetries.settlementBusy(settlementId);
+		if (retired(s, placed)) { BusyRetries.forget(retryKey(settlementId)); return; }
+		if (busy(settlementId) || runnerBusy || districtBlocking(s, java.util.Optional.of(placed)).isPresent()) {
+			var step = BusyRetries.wait(retryKey(settlementId), held, () -> retryChain(server, settlementId, placed, held), false);
+			if (step.gaveUp()) say.accept(RemovalStops.undoBusy(settlementId, held, RemovalStops.blocker(server, held, s.owner())));
+			return;
+		}
+		var head = headFirst(s, s.lastUndoable());
+		if (head.isEmpty() || !sameEntry(head.get(), placed)) {
+			BusyRetries.forget(retryKey(settlementId));
+			say.accept(RETRY_NEWER + " (/steward undo " + settlementId + ").");
+			return;
+		}
+		List<String> ids = new ArrayList<>(placed.siteIds());
+		var sites = ArchitectAccess.api().sites(server);
+		java.util.Map<String, Integer> now = new java.util.HashMap<>();
+		for (String id : ids) sites.get(id).ifPresent(v -> now.put(id, v.version()));
+		java.util.Collections.reverse(ids);
+		Steward.LOGGER.info("{}: the undo of \"{}\" that waited is asked again", settlementId, placed.text());
+		UNDOING.add(settlementId);
+		chainUndo(server, sites, s, placed, ids, placed.kind() == Settlement.Kind.BUILD_ADOPTED, now, new RemoveOptions(false, s.owner()), say);
+	}
+
+	/** (T4R-RETRY) Said when a waiting undo isn't carried on because something newer was placed since. */
+	static final String RETRY_NEWER = "The undo that waited isn't carried on: something newer was placed since, and undo goes newest first";
+
+	/** The same placing entry (its time, kind and text). Pure. */
+	static boolean sameEntry(Settlement.LogEntry a, Settlement.LogEntry b) {
+		// its tag is not compared: the newest undoable after a partial undo is the same entry with its tag dropped (site by site from then on)
+		return a.at() == b.at() && a.kind() == b.kind() && java.util.Objects.equals(a.text(), b.text());
 	}
 
 	/**
@@ -521,7 +593,10 @@ public final class Undo {
 			say.accept("If the world closes before this finishes, use /steward undo " + s.id() + " again.");
 		}
 		int session = Session.current();
-		asking(server, () -> regions.remove(region, new RemoveOptions(false, s.owner()))).whenComplete((r, err) -> ArchitectAccess.onServer(server, () -> {
+		var call = asking(server, () -> regions.remove(region, new RemoveOptions(false, s.owner())));
+		// (T4R-RETRY) while it waits on its ticket behind another removal: said once, in the steward's words
+		RemovalWaits.watch(server, s.owner(), () -> RemovalWaits.ofRegion(region), call, say);
+		call.whenComplete((r, err) -> ArchitectAccess.onServer(server, () -> {
 			if (!Session.is(session) || SettlementRunner.worldStopped(err)) { done.accept(null); return; }
 			// (T4S-PRE, 8cT/T4) decided and held: under way, finishing by itself. No closing note (the sweep, SD2, or RemovalFinished logs it once it is
 			// REMOVED), nothing logged as stopped, nothing asked again
@@ -896,13 +971,15 @@ public final class Undo {
 			if (ok == null) { whenDone.accept(null); return; }
 			UNDOING.remove(s.id());
 			if (ok) {
-				if (!complete(s.id(), entry, ref, now)) say.accept(UNLOGGED);
+				// (T4R-RETRY) its refund is said only after a completion this answer appended (one already logged, by the event or the sweep, said its own)
+				var logged = completeNow(s.id(), entry, ref, now);
+				if (logged == Completion.FAILED) say.accept(UNLOGGED);
 				// (slice DG) a district region's growth taken up: the district's land read again (the growth's land is let go)
 				Districts.refreshLand(s.id(), ref.region());
 				districts(server, s, say);
 				// (slice A2L review 6) the town's build watch is dropped when only the growth kept it unbuilt: never "built" for a town that lost its addition
 				MaterialRequests.forgetIfBuilt(ref.region());
-				if (Growths.reportsRefund(s, answer.get())) say.accept(Growths.refundLine(s, answer.get()));
+				if (logged == Completion.LOGGED_NOW && Growths.reportsRefund(s, answer.get())) say.accept(Growths.refundLine(s, answer.get()));
 				say.accept("Undone: " + whose + " change is taken up, the land restored.");
 			} else say.accept("Run /steward undo " + s.id() + " again once it is clear.");
 			whenDone.accept(ok);
@@ -920,9 +997,20 @@ public final class Undo {
 	 * Architect's revision holds (a cancel's batch may have placed more after the entry). False only when the append failed.
 	 */
 	static boolean complete(String settlementId, Settlement.LogEntry entry, Growths.Ref ref, java.util.Map<String, Integer> now) {
+		return completeNow(settlementId, entry, ref, now) != Completion.FAILED;
+	}
+
+	/** (T4R-RETRY) What {@link #completeNow} did: appended the completion now, found it there already, or failed to append. */
+	enum Completion { LOGGED_NOW, ALREADY, FAILED }
+
+	/**
+	 * (T4R-RETRY) {@link #complete}, saying whether this call appended the completion: the words that follow a growth's take-up (its refund) are said only
+	 * after an append this pass made, so a replayed event or a second reader never says them twice.
+	 */
+	static Completion completeNow(String settlementId, Settlement.LogEntry entry, Growths.Ref ref, java.util.Map<String, Integer> now) {
 		var fresh = Settlements.store().get(settlementId);
-		if (fresh.isEmpty()) return false;
-		if (Growths.completed(fresh.get(), ref.tag()) || retired(fresh.get(), entry)) return true;
+		if (fresh.isEmpty()) return Completion.FAILED;
+		if (Growths.completed(fresh.get(), ref.tag()) || retired(fresh.get(), entry)) return Completion.ALREADY;
 		List<String> revSites = List.of();
 		try {
 			revSites = ArchitectAccess.api().regions().get(ref.region()).flatMap(v -> Growths.revision(v, ref.rid())).map(r -> r.sites() == null ? List.<String>of() : r.sites())
@@ -930,7 +1018,8 @@ public final class Undo {
 		} catch (RuntimeException | LinkageError e) {
 			// the entry's own sites then
 		}
-		return Settlements.log(settlementId, removedGrowth(entry, removalSites(entry.siteIds(), revSites), ref.tag(), now)).ok();
+		return Settlements.log(settlementId, removedGrowth(entry, removalSites(entry.siteIds(), revSites), ref.tag(), now)).ok() ? Completion.LOGGED_NOW
+			: Completion.FAILED;
 	}
 
 	/** (slice A2L) The sites a growth's removal names: the entry's, then any other the revision holds, each once, in that order. Pure. */

@@ -1444,4 +1444,149 @@ class ComposedPlacingCrashTest {
 		assertEquals(0, a.ledger.paid);
 		conserved();
 	}
+
+	// ------------------------------------------------------------------ (T4R-RETRY, row 12) a realise refused as busy waits and realises once by itself
+
+	static final dev.larattalabs.architect.api.ArchitectRefused BUSY_PLACE = new dev.larattalabs.architect.api.ArchitectRefused(
+		dev.larattalabs.architect.api.Reason.SITE_BUSY, "Not yet: SENTINEL-RAW is still in progress over [1,2,3]", new dev.larattalabs.architect.api.Busy(
+			dev.larattalabs.architect.api.Busy.Kind.REMOVAL_IN_PROGRESS, "rg_blocker", "region", "steward_mc:settlement/other"));
+
+	static dev.larattalabs.architect.api.RemovalFinished regionDone(String id) {
+		return new dev.larattalabs.architect.api.RemovalFinished("region", id, null, null, new dev.larattalabs.architect.api.RemoveResult(true, List.of(), Map.of()));
+	}
+
+	@Test
+	void aRealiseRefusedAsBusyWaitsThenRealisesOnceByItselfUnderItsKeyAndDrawsOnce() throws IOException {
+		List<Runnable> timers = new ArrayList<>();
+		BusyRetries.clear();
+		BusyRetries.later = (ms, run) -> timers.add(run);
+		BusyRetries.onServer = run -> a.serverQueue.add(run);
+		try {
+			runner(BOUNDED);
+			a.quote = exact();
+			a.realiseFailure = BUSY_PLACE;
+			try (LogCapture log = LogCapture.open()) {
+				place();
+				assertTrue(ComposedRunnerOrderTest.said(log, "Not yet: a build nearby is still being taken down where it goes. I'll build it when that's cleared"),
+					log.lines + " " + tails());
+				assertFalse(log.lines.stream().anyMatch(l -> l.startsWith("settlement: ") && (l.contains("SENTINEL") || l.contains("could not place"))), String.valueOf(log.lines));
+			}
+			assertEquals(1, a.approved.size());
+			String key = a.approved.get(0).opKey();
+			assertNotEquals(Pipeline.Phase.CANCELLED, phase(), "never cancelled for a busy refusal");
+			assertTrue(phase() == Pipeline.Phase.PLACING || phase() == Pipeline.Phase.READY_TO_PLACE, String.valueOf(phase()));
+			assertFalse((boolean) field("queueInFlight"));
+			assertTrue(BusyRetries.waiting(r.placeRetryKey()));
+			assertEquals(0, a.ledger.paid, "nothing drawn");
+			conserved();
+			// another removal's end: nothing
+			BusyRetries.removalFinished(regionDone("rg_else"));
+			drain();
+			assertEquals(1, a.approved.size());
+			// a realise in flight meanwhile (a resume's): the wait's release asks nothing beside it
+			set("queueInFlight", true);
+			BusyRetries.removalFinished(regionDone("rg_blocker"));
+			drain();
+			assertEquals(1, a.approved.size(), "never a second realise beside one in flight");
+			set("queueInFlight", false);
+			// refused as busy once more (the same wait, counted, not said again)
+			place();
+			assertEquals(2, a.approved.size());
+			assertTrue(BusyRetries.waiting(r.placeRetryKey()));
+			// the blocker finishes: realised again by itself, under the same key, drawing once
+			a.realiseFailure = null;
+			assertTrue(BusyRetries.removalFinished(regionDone("rg_blocker")));
+			drain();
+			assertEquals(3, a.approved.size(), a.calls.toString());
+			assertEquals(key, a.approved.get(2).opKey(), "the same keyed realise, never a second one");
+			assertTrue(a.realisedByKey.containsKey(key));
+			assertFalse(BusyRetries.waiting(r.placeRetryKey()));
+			conserved();
+			int paid = a.ledger.paid;
+			assertTrue(paid > 0, "the town drew its put-down bill");
+			// the event replayed, the old timer: nothing more realised or drawn
+			BusyRetries.removalFinished(regionDone("rg_blocker"));
+			timers.forEach(Runnable::run);
+			drain();
+			assertEquals(3, a.approved.size());
+			assertEquals(paid, a.ledger.paid);
+			conserved();
+		} finally {
+			BusyRetries.clear();
+			BusyRetries.later = BusyRetries.DELAYED;
+			BusyRetries.onServer = BusyRetries.ON_SERVER;
+		}
+	}
+
+	@Test
+	void aBusyRealiseWaitingAcrossACrashIsNeverRealisedByTheOldSessionsWait() throws IOException {
+		List<Runnable> timers = new ArrayList<>();
+		BusyRetries.clear();
+		BusyRetries.later = (ms, run) -> timers.add(run);
+		BusyRetries.onServer = run -> a.serverQueue.add(run);
+		try {
+			runner(BOUNDED);
+			a.quote = exact();
+			a.realiseFailure = BUSY_PLACE;
+			place();
+			assertEquals(1, a.approved.size());
+			a.realiseFailure = null;
+			crash();
+			int afterResume = a.approved.size();
+			// the old session's wait: its event and its timer do nothing in the new session
+			BusyRetries.removalFinished(regionDone("rg_blocker"));
+			timers.forEach(Runnable::run);
+			drain();
+			assertEquals(afterResume, a.approved.size(), "nothing realised by the old wait: " + a.calls);
+			assertTrue(a.realisedByKey.size() <= 1, "one realise at most");
+			conserved();
+		} finally {
+			BusyRetries.clear();
+			BusyRetries.later = BusyRetries.DELAYED;
+			BusyRetries.onServer = BusyRetries.ON_SERVER;
+		}
+	}
+
+	// ------------------------------------------------------------------ (T4R-RETRY, row 5) a village's cancel refused as busy carries on by itself
+
+	@Test
+	void aCancelWhoseTakeUpIsRefusedAsBusyStaysCancellingAndEndsOnceItsBlockerFinishes() throws IOException {
+		List<Runnable> timers = new ArrayList<>();
+		BusyRetries.clear();
+		BusyRetries.later = (ms, run) -> timers.add(run);
+		BusyRetries.onServer = run -> a.serverQueue.add(run);
+		try {
+			runner(BOUNDED);
+			// a region of this build with nothing of it in the world (its record only): the cancel takes the record up
+			a.region("rg_c", saved.settlement().owner());
+			set("vRegionId", "rg_c");
+			a.removeAnswer = FakeArchitect.Answer.BUSY;
+			a.busy = new dev.larattalabs.architect.api.Busy(dev.larattalabs.architect.api.Busy.Kind.REMOVAL_IN_PROGRESS, "rg_blocker", "region", null);
+			try (LogCapture log = LogCapture.open()) {
+				call("feed", new Class<?>[] { Pipeline.Event.class }, new Pipeline.Cancel());
+				drain();
+				assertTrue(ComposedRunnerOrderTest.said(log, "Not yet: a build nearby is still being taken down next to it. The cancel carries on by itself once it's cleared."),
+					log.lines + " " + tails());
+			}
+			assertEquals(Pipeline.Phase.CANCELLING, phase());
+			assertEquals(1, a.count("regions.remove rg_c"));
+			assertTrue(BusyRetries.waiting(r.cancelRetryKey("rg_c")));
+			// the blocker finishes: asked again by itself, and the cancel ends
+			a.removeAnswer = FakeArchitect.Answer.APPLY;
+			assertTrue(BusyRetries.removalFinished(regionDone("rg_blocker")));
+			drain();
+			assertEquals(2, a.count("regions.remove rg_c"));
+			assertEquals(Pipeline.Phase.CANCELLED, phase());
+			// replayed, and the old timer: nothing more asked
+			BusyRetries.removalFinished(regionDone("rg_blocker"));
+			timers.forEach(Runnable::run);
+			drain();
+			assertEquals(2, a.count("regions.remove rg_c"));
+			conserved();
+		} finally {
+			BusyRetries.clear();
+			BusyRetries.later = BusyRetries.DELAYED;
+			BusyRetries.onServer = BusyRetries.ON_SERVER;
+		}
+	}
 }

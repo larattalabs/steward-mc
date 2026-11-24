@@ -56,11 +56,15 @@ class T4RDTest {
 		file = dir.resolve("steward-settlements.json");
 		Settlements.useForTest(new SettlementStore(), file);
 		Undo.later = Runnable::run;
+		BusyRetries.clear();
+		BusyRetries.later = (ms, r) -> { };
 	}
 
 	@AfterEach
 	void tearDown() {
 		Undo.later = Undo.LATER;
+		BusyRetries.clear();
+		BusyRetries.later = BusyRetries.DELAYED;
 		ArchitectAccess.reset();
 		Settlements.resetForTest();
 	}
@@ -192,8 +196,8 @@ class T4RDTest {
 		var e = placing(s);
 		Undo.chainUndo(null, ArchitectAccess.api().sites(null), s, e, List.of("c3", "c2", "c1"), false, Map.of(), new RemoveOptions(false, s.owner()), said::add);
 		String all = String.join("\n", said);
-		assertTrue(all.contains("Undo stopped after 1 of 3 sites: a build nearby is still being taken down next to it. Run /steward undo " + id
-			+ " again once it's cleared."), all);
+		// (T4R-RETRY) it now waits and carries on by itself (T4RRetryTest); said with what was taken down and why
+		assertTrue(all.contains("Undo waits after 1 of 3 sites: a build nearby is still being taken down next to it. It carries on by itself once it's cleared"), all);
 		assertFalse(all.contains("SENTINEL") || all.contains(Undo.SITES_NOT_NOW), all);
 		var after = now(id);
 		assertEquals(1, count(after, Kind.PROJECT_REMOVED), "the site before it, logged once");

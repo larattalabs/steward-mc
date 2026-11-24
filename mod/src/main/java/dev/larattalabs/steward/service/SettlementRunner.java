@@ -2464,6 +2464,11 @@ public final class SettlementRunner {
 		}
 	}
 
+	/** (T4R-RETRY) The key of this runner's cancel waiting behind a busy take-up of {@code region} ({@link BusyRetries}). */
+	String cancelRetryKey(String region) {
+		return "cancel:" + (settlement == null ? DEV_ID : settlement.id()) + ":" + region;
+	}
+
 	/** (T4S-PRE) This runner's cancel waits on a take-up Architect decided and holds: it ends once that finishes ({@link #removalFinished}, or a restart). */
 	private boolean cancelHeld;
 	/** (T4RD-S) How many timed re-reads this cancel's held take-up has had. */
@@ -4325,6 +4330,9 @@ public final class SettlementRunner {
 			if (err == null) takeUpOrphan(id);
 			return;
 		}
+		// (T4R-RETRY, row 12) refused as busy before anything was pinned, quoted, charged or written (Architect's placement pre-check): the build waits
+		// and realises again by itself, under the same key and the bill already approved
+		if (err != null && placeWaits(err)) return;
 		if (err != null && growth()) {
 			if ((uncertain(err) || keyConflict(err)) && findVillage()) return;
 			// (QD, S-M5-9) the bill at put-down was past the approved bound: nothing was written or taken (refused before the revision or its key
@@ -4409,8 +4417,37 @@ public final class SettlementRunner {
 		adoptVillage(id);
 	}
 
+	/** (T4R-RETRY) The key of this build's realise waiting behind a busy removal ({@link BusyRetries}): one build per settlement. */
+	String placeRetryKey() {
+		return "place:" + (settlement == null ? DEV_ID : settlement.id());
+	}
+
+	/**
+	 * (T4R-RETRY, row 12) A realise Architect refused as busy (typed, another removal or change in the way; never a decided hold) while this build is
+	 * still to be placed: it waits, said once, and {@link #realiseVillage} asks again by itself once the blocker's removal finishes or its bounded timer
+	 * runs (the same keys, the cleared quote or cap: a keyed realise is one realise, never charged twice). Past the bound it waits for that removal's end,
+	 * the next world start (the build resumes) or the player's cancel, said once. False when it is not that case (the caller's words apply).
+	 */
+	private boolean placeWaits(Throwable err) {
+		var h = siteBusy(err);
+		if (!h.busyAtAll() || h.decided() || state == null) return false;
+		if (state.phase() != Pipeline.Phase.PLACING && state.phase() != Pipeline.Phase.READY_TO_PLACE) return false;
+		Steward.LOGGER.info("{}: the realise was refused as busy: {}", settlement.id(), message(err));
+		String blocker = RemovalStops.blocker(server, h, settlement.owner());
+		// realiseVillage itself does nothing while a realise is in flight or the region is known (a resume's, or the player's)
+		var step = BusyRetries.wait(placeRetryKey(), h, () -> {
+			if (!alive() || state == null) return;
+			if (state.phase() != Pipeline.Phase.PLACING && state.phase() != Pipeline.Phase.READY_TO_PLACE) return;
+			realiseVillage();
+		}, true);
+		if (step.first()) say(RemovalStops.placeWaits(h, blocker));
+		else if (step.gaveUp()) say(RemovalStops.placeStillWaits(h, blocker, settlement.id()));
+		return true;
+	}
+
 	/** Takes the realised region as this build's placement. */
 	private void adoptVillage(String regionId) {
+		BusyRetries.forget(placeRetryKey());
 		if (growth()) { adoptGrowth(regionId); return; }
 		vRegionId = regionId;
 		// a plan's village: the region keeps its artifact now (Architect writes it before answering)
@@ -4975,7 +5012,7 @@ public final class SettlementRunner {
 		}
 		if (growth()) { cancelGrowth(); return; }
 		String id = vRegionId;
-		var regions = ArchitectApi.get().regions();
+		var regions = ArchitectAccess.api().regions(); // (T4R-RETRY) exactly ArchitectApi.get() in production
 		var v = regions.get(id);
 		int placed = v.map(x -> (int) x.lots().stream().filter(l -> "placed".equalsIgnoreCase(String.valueOf(l.state()))).count()).orElse(0);
 		int skipped = v.map(x -> x.lots().size()).orElse(0) - placed;
@@ -4989,7 +5026,10 @@ public final class SettlementRunner {
 		}
 		if (entry.isEmpty()) {
 			// nothing of it shows in the world: its record is removed (a tombstone, or no region, is gone already)
-			Undo.asking(server, () -> regions.remove(id, new RemoveOptions(false, settlement.owner()))).whenComplete((r, err) -> server.execute(() -> {
+			// (T4R-RETRY) this ask takes over any wait of the cancel: an older timer or event finds it gone and does nothing
+			String retryKey = cancelRetryKey(id);
+			BusyRetries.forget(retryKey);
+			Undo.asking(server, () -> regions.remove(id, new RemoveOptions(false, settlement.owner()))).whenComplete((r, err) -> ArchitectAccess.onServer(server, () -> {
 				if (!alive() || worldStopped(err)) return;
 				// (T4S-PRE) decided and held: it finishes by itself; the cancel waits for REMOVED (never ends on an absent record or a guess)
 				if (siteBusy(err).decided()) {
@@ -5001,7 +5041,15 @@ public final class SettlementRunner {
 				// (T4RD-S) refused as busy before it began: the cancel stays CANCELLING, said by its typed cause; the player cancels again
 				if (siteBusy(err).busyAtAll()) {
 					Steward.LOGGER.info("{}: the cancel's take-up of {} was refused as busy: {}", settlement.id(), id, message(err));
-					say(RemovalStops.cancelBusy(settlement.id(), siteBusy(err), RemovalStops.blocker(server, siteBusy(err), settlement.owner())));
+					// (T4R-RETRY, row 5) asked again by itself once the blocker's removal finishes (or its bounded timer), still CANCELLING; past the
+					// bound it waits for that removal's end only, said once
+					var h = siteBusy(err);
+					String blocker = RemovalStops.blocker(server, h, settlement.owner());
+					var step = BusyRetries.wait(retryKey, h, () -> {
+						if (alive() && state != null && state.phase() == Pipeline.Phase.CANCELLING && id.equals(vRegionId)) cancelVillage();
+					}, true);
+					if (step.first()) say(RemovalStops.cancelWaits(h, blocker));
+					else if (step.gaveUp()) say(RemovalStops.cancelBusy(settlement.id(), h, blocker));
 					return;
 				}
 				var after = regions.get(id);

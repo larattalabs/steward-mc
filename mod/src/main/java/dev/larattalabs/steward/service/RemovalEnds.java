@@ -66,6 +66,7 @@ public final class RemovalEnds {
 		net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STARTING.register(srv -> server = srv);
 		net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STOPPING.register(srv -> server = null);
 		if (subscribed) return;
+		BusyRetries.init();
 		try {
 			dev.larattalabs.architect.api.SiteEvents.REMOVAL_FINISHED.register(e -> {
 					MinecraftServer srv2 = server;
@@ -80,6 +81,8 @@ public final class RemovalEnds {
 					srv2.execute(() -> {
 						Updates.removalFinished(e);
 						handle(srv2, end, voice(srv2));
+						// (T4R-RETRY) calls refused behind exactly this removal are asked again, once each
+						BusyRetries.removalFinished(e);
 					});
 			});
 			subscribed = true;
@@ -108,6 +111,8 @@ public final class RemovalEnds {
 		if (e == null || e.kind() == null || e.id() == null) return;
 		Steward.LOGGER.info("removal {} {} finished (removed {}, refund {}, owed parts {})", e.kind(), e.id(), e.removed(), e.refund().size(), e.owed().size());
 		if (!e.removed()) return;
+		// (T4R-RETRY) a growth's revision's stage (kind group, revisionId set): its growth logged once its revision reads UNDONE, then said with its refund
+		if (e.revisionId() != null) RevisionEnds.revisionEnded(srv, e, say);
 		for (Settlement s : List.copyOf(Settlements.store().all())) {
 			// an undo of it still answering in this session logs it itself (a held one has released its mark)
 			if (Undo.busy(s.id())) continue;

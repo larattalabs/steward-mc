@@ -357,7 +357,7 @@ class RemovalStopsTest {
 			boolean[] ran = {false};
 			Districts.takeUpForTest(s, "road_1", said::add, () -> ran[0] = true);
 			assertTrue(ran[0], how.toString());
-			assertEquals(List.of("test, and the road road_1 could not be taken up" + (how == FakeArchitect.Answer.REFUSE ? " just now" : ": something is in its way")
+			assertEquals(List.of("test, and it could not be taken up" + (how == FakeArchitect.Answer.REFUSE ? " just now" : ": something is in its way")
 				+ ". It is tried again later."), said, how.toString());
 			assertTrue(said.stream().noneMatch(l -> l.contains(SENTINEL) || l.contains("refused: busy")), said.toString());
 		}

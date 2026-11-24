@@ -69,6 +69,12 @@ final class FakeArchitect {
 	/** (T4RD-S) The typed busy a BUSY answer refuses with (its message carries Architect's raw text, never to be said). */
 	dev.larattalabs.architect.api.Busy busy = new dev.larattalabs.architect.api.Busy(dev.larattalabs.architect.api.Busy.Kind.REMOVAL_IN_PROGRESS, "grp_other",
 		"group", "steward_mc:settlement/other");
+	/** (T4R-RETRY) Site groups' ticket waits ({@code SiteGroup.removalWait}). */
+	final Map<String, dev.larattalabs.architect.api.RemovalWait> groupWaits = new HashMap<>();
+	/** (T4R-RETRY) {@code Sites.outdated(owner)}'s answer, and {@code checkDelta}'s. */
+	final List<dev.larattalabs.architect.api.OutdatedSite> outdated = new ArrayList<>();
+	dev.larattalabs.architect.api.DeltaVerdict deltaVerdict;
+
 	/** (T4RD-S) {@code Sites.removalResult(kind, id)}: by {@code kind + ":" + id}. */
 	final Map<String, RemoveResult> removalResults = new HashMap<>();
 
@@ -100,6 +106,8 @@ final class FakeArchitect {
 		String planId;
 		/** (slice DRS) What it waits for ({@code RevisionView.waiting}), when a test gives it. */
 		String waiting;
+		/** (T4R-RETRY) Its stages ({@code RevisionView.stages}), when a test gives them. */
+		final List<String> stages = new ArrayList<>();
 		/** (RVC) Its typed stop cause ({@code RevisionView.removalStopCause}); Architect makes it OTHER when waiting with none, null when not. */
 		dev.larattalabs.architect.api.RemovalStopCause removalStopCause;
 
@@ -112,7 +120,7 @@ final class FakeArchitect {
 		}
 
 		RevisionView view() {
-			return new RevisionView(rid, position, rid - 1, planId, "sha", state, 0L, List.of(), List.of(), List.of(), 0L, null, true, waiting, sites,
+			return new RevisionView(rid, position, rid - 1, planId, "sha", state, 0L, List.copyOf(stages), List.of(), List.of(), 0L, null, true, waiting, sites,
 				removalStopCause);
 		}
 	}
@@ -165,8 +173,11 @@ final class FakeArchitect {
 			return new RegionView(id, "plan_" + id, "sha", owner, ext.deepCopy(), "grp_" + id, new BoundingBox(0, -64, 0, 300, 320, 300), state, List.of(), List.of(), 0L,
 				Map.of(), null, null, List.of(), state == RegionState.REMOVED ? 1L : 0L, null, List.of(), null, build, position, busy,
 				revisions.stream().map(Rev::view).toList(), removalStop, removalStop == dev.larattalabs.architect.api.RemovalStop.NONE ? null : "stopped",
-				removalStop == dev.larattalabs.architect.api.RemovalStop.NONE ? null : removalStopCause, null, null);
+				removalStop == dev.larattalabs.architect.api.RemovalStop.NONE ? null : removalStopCause, null, null, removalWait);
 		}
+
+		/** (T4R-RETRY) Its removal's ticket wait ({@code RegionView.removalWait}), when a test gives one. */
+		dev.larattalabs.architect.api.RemovalWait removalWait;
 	}
 
 	static final class Site {
@@ -178,6 +189,10 @@ final class FakeArchitect {
 		int version = 1;
 		long placedAt = 1L;
 		BoundingBox box = new BoundingBox(0, 64, 0, 4, 70, 4);
+		/** (T4R-RETRY) Its kind ({@code road} for a road). */
+		String kind = "building";
+		/** (T4R-RETRY) Its dimension, when a test gives one (Updates reads it). */
+		net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level> dimension;
 
 		Site(String id, String owner) {
 			this.id = id;
@@ -190,7 +205,7 @@ final class FakeArchitect {
 		}
 
 		SiteView view() {
-			return new SiteView(id, "bp_" + id, owner, ext.deepCopy(), box, box, Rotation.NONE, null, state, 0, 0, null, null, null, "building", null, List.of(), List.of(),
+			return new SiteView(id, "bp_" + id, owner, ext.deepCopy(), box, box, Rotation.NONE, dimension, state, 0, 0, null, null, null, kind, null, List.of(), List.of(),
 				version, version, 0, false, region, null);
 		}
 	}
@@ -452,13 +467,24 @@ final class FakeArchitect {
 				yield answer(removeAnswer, () -> { for (String id : siteGroups.getOrDefault(g, List.of())) sites.remove(id); siteGroups.remove(g); });
 			}
 			case "loadHealthy" -> loadHealthy;
+			// (T4R-RETRY) the update scan: what a test says is outdated, and its preview
+			case "outdated" -> { calls.add("sites.outdated " + a[0]); yield List.copyOf(outdated); }
+			case "checkDelta" -> { calls.add("sites.checkDelta"); yield deltaVerdict; }
 			case "removalResult" -> {
 				calls.add("sites.removalResult " + a[0] + " " + a[1]);
 				yield removalResults.get(a[0] + ":" + a[1]);
 			}
 			// (CRASH-T) a composed town is placed as a region, never a batch or a site group: none
 			case "batches" -> { calls.add("sites.batches " + a[0]); yield List.of(); }
-			case "batch", "group" -> { calls.add("sites." + m + " " + a[0]); yield Optional.empty(); }
+			case "batch" -> { calls.add("sites." + m + " " + a[0]); yield Optional.empty(); }
+			// (T4R-RETRY) a site group with a ticket wait, when a test gives one
+			case "group" -> {
+				calls.add("sites.group " + a[0]);
+				var w = groupWaits.get((String) a[0]);
+				yield w == null ? Optional.empty() : Optional.of(new dev.larattalabs.architect.api.SiteGroup((String) a[0], "o", new JsonObject(),
+					siteGroups.getOrDefault((String) a[0], List.of()), List.of(), dev.larattalabs.architect.api.SiteGroup.State.REMOVING, Optional.empty(), Optional.empty(),
+					dev.larattalabs.architect.api.RemovalStop.NONE, null, w));
+			}
 			default -> throw new UnsupportedOperationException("FakeArchitect: Sites." + m + " is not modelled");
 		});
 		dev.larattalabs.architect.api.Designs designsApi = proxy(dev.larattalabs.architect.api.Designs.class, (m, a) -> switch (m) {
@@ -706,7 +732,11 @@ final class FakeArchitect {
 
 	private CompletableFuture<RemoveResult> removeSite(String id, RemoveOptions o) {
 		calls.add("sites.remove " + id);
-		return answer(siteAnswers.getOrDefault(id, removeAnswer), () -> sites.remove(id));
+		// (T4R-RETRY) a site built from the stockpile refunds what it drew, once per key (the ledger's rule), so a retried undo's sums can be checked
+		return answer(siteAnswers.getOrDefault(id, removeAnswer), () -> {
+			Site gone = sites.remove(id);
+			if (gone != null) ledger.refund(gone);
+		});
 	}
 
 	private CompletableFuture<RemoveResult> answer(Answer how, Runnable apply) {

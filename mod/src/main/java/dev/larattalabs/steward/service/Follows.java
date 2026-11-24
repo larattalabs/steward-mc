@@ -60,7 +60,7 @@ public final class Follows {
 
 	/** The settlement's standing buildings (in its own dimension). */
 	static List<SiteView> buildings(MinecraftServer server, Settlement s) {
-		return ArchitectApi.get().sites(server).list(s.owner()).stream().filter(v -> "building".equals(v.kind()) && v.blueprintId() != null
+		return ArchitectAccess.api().sites(server).list(s.owner()).stream().filter(v -> "building".equals(v.kind()) && v.blueprintId() != null
 			&& v.dimension().identifier().toString().equals(s.claim().dimension())).toList();
 	}
 
@@ -175,7 +175,7 @@ public final class Follows {
 	 */
 	static FollowOf followOf(String entryId, int version) {
 		try {
-			var d = ArchitectApi.get().library().entry(entryId, version).flatMap(e -> e.derivation())
+			var d = ArchitectAccess.api().library().entry(entryId, version).flatMap(e -> e.derivation())
 				.filter(x -> x.kind() == dev.larattalabs.architect.api.Library.Derivation.Kind.COPY);
 			return d.map(x -> new FollowOf(x.source(), x.sourceVersion())).orElse(null);
 		} catch (UnsupportedOperationException e) {

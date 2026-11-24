@@ -110,7 +110,7 @@ public final class Updates {
 	/** Re-checks one settlement: applies what its permission lets the steward apply, keeps the rest pending. */
 	static void refresh(MinecraftServer server, Settlement s) {
 		if (Settlements.disabled()) return;
-		var sites = ArchitectApi.get().sites(server);
+		var sites = ArchitectAccess.api().sites(server); // (T4R-RETRY) exactly ArchitectApi.get() in production; a test drives the preview
 		List<Pending> pending = new ArrayList<>();
 		// the library and the sites are the mod's own: a copy's update asks whether or not the helper is connected (docs/FOLLOW.md)
 		List<SiteView> buildings = Follows.buildings(server, s);

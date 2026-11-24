@@ -286,6 +286,18 @@ public final class RemovalStops {
 			+ settlementId + " again " + busyWhen(h) + ".";
 	}
 
+	/** (T4R-RETRY) What a site-by-site undo that waits behind a busy site starts with. */
+	static final String UNDO_WAITS = "Undo waits";
+
+	/**
+	 * (T4R-RETRY, row 1) A site-by-site undo stopped on a busy site that carries on by itself: what was taken down, why in the steward's words, and that it
+	 * carries on (a world closing first loses the wait: the player asks again). Pure.
+	 */
+	static String undoWaits(String settlementId, int removed, int of, SiteBusy.Held h, String blocker) {
+		return UNDO_WAITS + " after " + removed + " of " + dev.larattalabs.steward.model.Words.count(of, "site", "sites") + ": " + busyWhy(h, blocker)
+			+ ". It carries on by itself " + busyWhen(h) + " (if the world closes first, run /steward undo " + settlementId + " again).";
+	}
+
 	/** (T4RD-S) A whole group's or village's undo (rows 2, 3) refused as busy before it began: nothing was taken down. Pure. */
 	static String undoBusy(String settlementId, SiteBusy.Held h, String blocker) {
 		return "Undo stopped: " + busyWhy(h, blocker) + ", so nothing was taken down. Run /steward undo " + settlementId + " again " + busyWhen(h) + ".";
@@ -301,8 +313,26 @@ public final class RemovalStops {
 		return "Not yet: " + busyWhy(h, blocker) + ". Run /steward cancel " + settlementId + " again " + busyWhen(h) + ".";
 	}
 
+	/** (T4R-RETRY, row 5) A village's cancel refused as busy that carries on by itself: it stays cancelling. Pure. */
+	static String cancelWaits(SiteBusy.Held h, String blocker) {
+		return "Not yet: " + busyWhy(h, blocker) + ". The cancel carries on by itself " + busyWhen(h) + ".";
+	}
+
+	/** (T4R-RETRY, row 12) A placement refused as busy that the steward builds by itself once the way clears. Pure. */
+	static String placeWaits(SiteBusy.Held h, String blocker) {
+		return "Not yet: " + (h.waits() ? blocker + " is still being taken down where it goes" : "Architect is still finishing another change where it goes")
+			+ ". I'll build it " + (h.waits() ? "when that's cleared" : "in a moment") + "; nothing was taken for it yet.";
+	}
+
+	/** (T4R-RETRY, row 12) Said once when a placement has waited past its bound: it still waits. Pure. */
+	static String placeStillWaits(SiteBusy.Held h, String blocker, String settlementId) {
+		return "The build still waits: " + (h.waits() ? blocker + " is still being taken down where it goes. It is built once that's cleared or"
+			: "Architect is still finishing another change where it goes. It is tried again") + " when the world next starts; /steward cancel " + settlementId
+			+ " stops it.";
+	}
+
 	/** (T4RD-S) An unrecorded road's take-up (row 7) refused as busy: tried again later by itself. {@code why} says what the road is. Pure. */
-	static String roadBusy(String why, String roadId, SiteBusy.Held h, String blocker) {
+	static String roadBusy(String why, SiteBusy.Held h, String blocker) {
 		return why + ": it is taken up once " + (h.waits() ? blocker + " next to it is cleared" : "Architect has finished another change there")
 			+ ".";
 	}

@@ -291,10 +291,9 @@ public final class VillageSweep {
 					// (slice A2L) a growth whose undo Architect finished on its own (a restart cut Steward's take-up short, and Architect resumed it at the
 					// world start): its removal logged once, here, when nothing of Steward's still owns it
 					if (named.isPresent() && reconcileDue(s, tag, r.state(), SettlementRunner.busy(s.id()))) {
-						if (Undo.complete(s.id(), named.get(), new Growths.Ref(town.get().id(), r.rid()), Map.of())) {
-							Steward.LOGGER.info("{}: growth {} was taken up by Architect after a restart: its removal logged", s.id(), tag);
-							MaterialRequests.forgetIfBuilt(town.get().id());
-						} else Steward.LOGGER.warn("{}: growth {}'s removal could not be logged; tried again", s.id(), tag);
+						// (T4R-RETRY) logged and said once, as a revision's REMOVAL_FINISHED does it (RemovalEnds.revisionEnded): the one path
+						if (RevisionEnds.finish(server, s, town.get(), r, named.get(), null, (id, line) -> StewardVoice.say(server, id, line)) == Undo.Completion.FAILED)
+							Steward.LOGGER.warn("{}: growth {}'s removal could not be logged; tried again", s.id(), tag);
 					}
 					continue;
 				}
