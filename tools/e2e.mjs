@@ -5769,6 +5769,64 @@ async function suppliedGrowthFlow(mode = null) {
         await clearUp(g.tag);
       }
     }
+    // (T4R-PIN fix round, batch-100 P1) a revision undo Architect doesn't answer: a stage's removal paused (dev.removal.pause, kept across a
+    // restart) leaves undoRevision's future pending, as 0.91.0 leaves it while a stage's undo is decided and held. Steward's answer bound (20 s here,
+    // 10 min by default) takes it as under way: said once, its held note saved, the settlement no longer busy (a state probe). Then the crash point:
+    // an unclean halt after the bound and before the late completion, the restart, the pause lifted: Architect finishes it, the growth sweep logs
+    // one removal and says it once, and what came back = what it drew, once (judge)
+    if (!fromPlan) {
+      const lbl = `${label} undo held past the bound`;
+      const g = await grow(`${lbl} growth`, 'end', true);
+      const site = g?.siteIds?.[0];
+      if (g && !site) { fail(lbl, 'the growth names no site to pause'); await clearUp(g.tag); }
+      else if (g) {
+        const spB = await ledger();
+        const rid = Number(/:(\d+)$/.exec(g.tag)?.[1]);
+        const heldNote = () => (settlements().find((x) => x.id === id)?.log ?? []).find((e) => e.kind === 'NOTE' && e.siteGroup === `undo:${g.tag}` && /^Undo under way/.test(e.text ?? ''));
+        const paused = await dev.request('dev.removal.pause', { site, after: 0 }).then(() => true).catch(() => false);
+        const bound = await devModule({ op: 'undoBound', ms: 20_000 });
+        from = logSize();
+        await away();
+        await cmd(`/steward undo ${id}`);
+        // bounded: the bound is 20 s; 120 s without the line is a FAIL
+        const said = await waitLog(from, /The town's change is being taken up: [^\n]*/, 120_000);
+        const busy = await devModule({ op: 'undoBusy', id });
+        const st = ((await view()).revisions ?? []).find((x) => x.rid === rid)?.state;
+        const saidN = logSince(from).split('\n').filter((l) => l.includes('[CHAT]') && /The town's change is being taken up/.test(l)).length;
+        const atBound = paused && bound?.ms === 20_000 && said && busy && busy.undoing === false && busy.busy === false && st === 'UNDOING' && heldNote() && !completion(g.tag) && saidN === 1;
+        if (atBound) ok(`${lbl} at the bound`, `${said[0].slice(0, 120)}; said once; held note saved; not busy; revision ${st}; nothing logged yet`);
+        else fail(`${lbl} at the bound`, `paused ${paused}; bound ${JSON.stringify(bound)}; said ${said ? `${saidN}x` : 'nothing'}; busy ${JSON.stringify(busy)}; revision ${st}; note ${!!heldNote()}; logged ${!!completion(g.tag)}; ${chatTail(from)}`);
+        // the crash point: an unclean halt after the bound, before Architect's late completion
+        feeding = false;
+        nudge = null;
+        await dev.request('dev.stockpile.halt', { mode: 'now' }, { timeoutMs: 10_000 }).catch(() => null);
+        for (let i = 0; i < 120 && client.exitCode === null; i++) await sleep(1000);
+        if (client.exitCode === null) { fail(lbl, 'dev.stockpile.halt did not halt the client in 120 s'); await dev.request('dev.removal.pause', { site, off: true }).catch(() => null); }
+        else {
+          dev = null;
+          await sleep(4000);
+          relaunchAt = logSize();
+          launch();
+          await connect();
+          await cmd('/architect survival on');
+          await cmd('/gamemode creative @p');
+          const kept = !!heldNote() && !completion(g.tag);
+          await dev.request('dev.removal.pause', { site, off: true }).catch(() => null);
+          // bounded: 10 min for Architect to finish and the sweep (every 10 s) to log it
+          const done = await until(() => completion(g.tag), 600);
+          if (!kept) fail(`${lbl} restart`, `after the restart: held note ${!!heldNote()}, logged ${!!completion(g.tag)} (before the pause was lifted)`);
+          if (!done) fail(lbl, `no completion 10 min after the pause was lifted; ${chatTail(relaunchAt)}`);
+          else {
+            await judge(lbl, g.tag, g.spStart, spB, g.siteIds, relaunchAt);
+            const words = heldWords(logSince(relaunchAt), [/Undone: "[^"]*" finished by itself/]);
+            const finishedN = logSince(relaunchAt).split('\n').filter((l) => l.includes('[CHAT]') && /finished by itself/.test(l)).length;
+            if (words.ok && finishedN === 1) ok(`${lbl} words`, `${words.why}; said once`);
+            else fail(`${lbl} words`, `${words.why}; "finished by itself" said ${finishedN}x`);
+          }
+        }
+        await clearUp(g.tag);
+      }
+    }
     // a growth fed to the end: a restart while its targets wait (watched again, said built once), its bills = what the stockpile paid, then undone
     const g5 = await grow(`${label} built`, 'end');
     if (!g5) return;
