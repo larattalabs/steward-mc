@@ -94,13 +94,14 @@ class StageWaitWordsTest {
 	}
 
 	/**
-	 * (WORDING-3) batch 097's two quarters (fixtures/strange-asks/plans/old_new_town.json, its zone and districts, lots cut) plus a district with no label
-	 * ({@code b}), one labelled by id ({@code d2}) and a second zone.
+	 * (WORDING-3) The two quarters of fixtures/strange-asks/plans/old_new_town.json (its zone and districts, lots cut), plus a district with no label
+	 * ({@code b}), one with a short id ({@code d2}), a second zone and a connector whose id ends in "street".
 	 */
 	static final String DPLAN = "{\"zones\":[{\"id\":\"town\",\"label\":\"Two Quarters on the River and Hill\",\"program\":{\"districts\":["
 		+ "{\"id\":\"old_quarter\",\"label\":\"Old riverside quarter\",\"lots\":[{\"id\":\"tavern_1\",\"type\":\"tavern\",\"label\":\"old town hall\"}]},"
 		+ "{\"id\":\"b\",\"lots\":[]},{\"id\":\"d2\",\"label\":\"the river district\",\"lots\":[]}]}},"
-		+ "{\"id\":\"z2\",\"label\":\"Hill quarter\",\"program\":{\"lots\":[]}}]}";
+		+ "{\"id\":\"hill\",\"label\":\"Hill quarter\",\"program\":{\"lots\":[]}}],"
+		+ "\"connectors\":[{\"id\":\"high_street\",\"kind\":\"road\",\"label\":\"High Street\"}]}";
 
 	@Test
 	void aRoadIsNamedAsAPlayerWouldNeverByItsId() {
@@ -119,12 +120,19 @@ class StageWaitWordsTest {
 		// the street flag (Architect S-FL-5) names its district before the id does
 		assertEquals("east street of the Old riverside quarter", SettlementRunner.waitSubject(null, ext("{\"architect_mc:part\":\"street_e\",\"architect_mc:street\":"
 			+ "{\"zone\":\"town\",\"district\":\"old_quarter\"}}"), "road:street_e", DPLAN, "Two Quarters"));
-		// a second zone's street (prefix z2_) by the zone's label; a free layout's avenue and ring
-		assertEquals("west street of the Hill quarter", MaterialRequests.idWords(DPLAN, null, "z2_street_w"));
+		// a second zone's street by its flag's zone label; its z2_ prefix is by position (Architect plan compile), never a zone id: dropped
+		assertEquals("west street of the Hill quarter", MaterialRequests.idWords(DPLAN, ext("{\"architect_mc:street\":{\"zone\":\"hill\"}}"), "z2_street_w"));
+		assertEquals("west street", MaterialRequests.idWords(DPLAN, null, "z2_street_w"));
+		assertEquals("west street", MaterialRequests.idWords(PLAN, ext("{\"architect_mc:street\":{\"zone\":\"castle\"}}"), "street_w"), "one zone: the town's own street");
+		// a split piece; a free layout's avenue and ring
+		assertEquals("west street of the Old riverside quarter", MaterialRequests.idWords(DPLAN, null, "old_quarter_street_w_2"));
 		assertEquals("avenue 1 of the Old riverside quarter", MaterialRequests.idWords(DPLAN, null, "old_quarter_street_a1"));
 		assertEquals("ring street", MaterialRequests.idWords(DPLAN, null, "street_ring"));
 		// a street lamp is not a street: one rule reads only a street's own names
 		assertEquals("props street lamp", MaterialRequests.idWords(DPLAN, null, "props_street_lamp"));
+		// the plan's own name first: a connector named high_street is its label, never "street of district high"
+		assertEquals("High Street", MaterialRequests.partWords(DPLAN, "high_street", "Two Quarters"));
+		assertEquals("High Street", SettlementRunner.waitSubject(null, ext("{\"architect_mc:part\":\"high_street\"}"), "road:high_street", DPLAN, "Two Quarters"));
 	}
 
 	@Test
@@ -175,7 +183,8 @@ class StageWaitWordsTest {
 			null, "Castle Walls"));
 		assertEquals("build", MaterialRequests.idWords(null, null, "  "));
 		assertEquals("build", MaterialRequests.idWords(null, null, "road "));
-		// an unreadable plan: the street's words from its id alone
-		assertEquals("north street of district zz", MaterialRequests.idWords("not json", null, "zz_street_n"));
+		// an unreadable plan, or a prefix no plan names: the street's side alone, never "district zz"
+		assertEquals("north street", MaterialRequests.idWords("not json", null, "zz_street_n"));
+		assertEquals("north street", MaterialRequests.idWords(DPLAN, null, "zz_street_n"));
 	}
 }

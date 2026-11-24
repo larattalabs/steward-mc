@@ -541,14 +541,19 @@ public final class MaterialRequests {
 		return Secrets.of(planJson).hides(part) ? hostName(planJson, part, fallback) : idWords(planJson, ext, part);
 	}
 
-	/** (WORDING-3) A street's id: an optional kind word, a prefix (a district's or a zone's, "z2_"), the {@code street} stem and its name. */
-	private static final java.util.regex.Pattern STREET_ID = java.util.regex.Pattern.compile("^(?:road[_: ])?(?:([a-z0-9_]*?)_)?street(?:_(w|e|n|s|ring|spiral|[ac]\\d+))?$");
+	/**
+	 * (WORDING-3) A street road's id: an optional kind word, a prefix (a district's id; a later zone's {@code z<n>_}, by position), the {@code street} stem,
+	 * its name and a split piece's number (Architect V, D1, FL: {@code street_w_2}, {@code old_quarter_street_e}, {@code street_a1}).
+	 */
+	private static final java.util.regex.Pattern STREET_ID = java.util.regex.Pattern.compile(
+		"^(?:road[_: ])?(?:([a-z0-9_]*?)_)?street(?:_(w|e|n|s|ring|spiral|[ac]\\d+))?(?:_\\d+)?$");
 
 	/**
-	 * (WORDING-3) A thing Architect names by its id (a part, a road, a street, a district) in a player's words, never the id: a street by its side and its
-	 * district or zone ("west street of the Old riverside quarter", "west street of district b"; the item's {@code architect_mc:street} flag first, else
-	 * its id's prefix), a plan district by its label ("Old riverside quarter", else "district b"), else the part's label or id in words ({@link
-	 * #partName}). A waiter's kind word ("road street_w") is dropped. Never blank: an empty id is "build". Pure.
+	 * (WORDING-3) A thing Architect names by its id (a part, a road, a street, a district) in a player's words, never the id. A plan part is its label or id in
+	 * words ({@link #partName}: "Market street"); a plan district its label ("Old riverside quarter", else "district b"); a street road its side, with its
+	 * district or, in a plan of several zones, its zone ("west street of the Old riverside quarter", "west street of district b"; the item's {@code
+	 * architect_mc:street} flag first, else a prefix the plan knows; an unknown prefix is dropped: "west street"); else the id in words. A waiter's kind word
+	 * ("road street_w") is dropped. Never blank: an empty id is "build". Pure.
 	 */
 	static String idWords(@org.jspecify.annotations.Nullable String planJson, com.google.gson.@org.jspecify.annotations.Nullable JsonObject ext, String id) {
 		String bare = id.replaceFirst("^\\s*road[ :]", "").strip();
@@ -559,41 +564,60 @@ public final class MaterialRequests {
 		} catch (RuntimeException e) {
 			// an unreadable plan: ids only
 		}
-		var street = STREET_ID.matcher(bare);
-		var flag = ext != null && ext.get(dev.larattalabs.steward.gateway.BatchPlanner.REGION_STREET_EXT) instanceof com.google.gson.JsonObject f ? f : null;
-		if (street.matches()) {
-			String in = flag != null && flag.get("district") instanceof com.google.gson.JsonPrimitive d ? d.getAsString() : street.group(1);
-			String name = street.group(2) == null ? "" : street.group(2);
-			String side = switch (name) {
-				case "" -> "street";
-				case "w" -> "west street";
-				case "e" -> "east street";
-				case "n" -> "north street";
-				case "s" -> "south street";
-				case "ring" -> "ring street";
-				case "spiral" -> "spiral street";
-				default -> (name.charAt(0) == 'a' ? "avenue " : "cross street ") + name.substring(1);
-			};
-			if (in == null || in.isBlank()) return side;
-			String where = placeWords(plan, in);
-			return where == null ? side : side + " of " + where;
-		}
 		if (plan != null) {
-			for (var d : PlanDistricts.districts(plan)) if (d.get("id") instanceof com.google.gson.JsonPrimitive i && bare.equals(i.getAsString())) return districtWords(d, bare);
+			// the plan's own name for it first: a connector named "high_street" is its label, never a street's side
+			if (planPart(plan, bare)) return partName(planJson, bare);
+			var d = district(plan, bare);
+			if (d != null) return districtWords(d, bare);
 		}
-		return partName(planJson, bare);
+		var street = STREET_ID.matcher(bare);
+		if (!street.matches()) return partName(planJson, bare);
+		String name = street.group(2) == null ? "" : street.group(2);
+		String side = switch (name) {
+			case "" -> "street";
+			case "w" -> "west street";
+			case "e" -> "east street";
+			case "n" -> "north street";
+			case "s" -> "south street";
+			case "ring" -> "ring street";
+			case "spiral" -> "spiral street";
+			default -> (name.charAt(0) == 'a' ? "avenue " : "cross street ") + name.substring(1);
+		};
+		var flag = ext != null && ext.get(dev.larattalabs.steward.gateway.BatchPlanner.REGION_STREET_EXT) instanceof com.google.gson.JsonObject f ? f : null;
+		String where = plan == null ? null : placeWords(plan, flag != null && flag.get("district") instanceof com.google.gson.JsonPrimitive dp ? dp.getAsString()
+			: street.group(1), flag != null && flag.get("zone") instanceof com.google.gson.JsonPrimitive zp ? zp.getAsString() : null);
+		return where == null ? side : side + " of " + where;
 	}
 
-	/** A street's district or zone in words ("the Old riverside quarter", "district b"), or null for a zone with no label (the street is the zone's own). */
-	private static @org.jspecify.annotations.Nullable String placeWords(com.google.gson.@org.jspecify.annotations.Nullable JsonObject plan, String id) {
-		if (plan != null) {
-			for (var d : PlanDistricts.districts(plan)) if (d.get("id") instanceof com.google.gson.JsonPrimitive i && id.equals(i.getAsString())) return theOf(districtWords(d, id));
-			if (plan.get("zones") instanceof com.google.gson.JsonArray zones) for (var z : zones) {
-				if (z instanceof com.google.gson.JsonObject zo && zo.get("id") instanceof com.google.gson.JsonPrimitive i && id.equals(i.getAsString()))
-					return zo.get("label") instanceof com.google.gson.JsonPrimitive l && !l.getAsString().isBlank() ? theOf(l.getAsString()) : null;
-			}
+	/** Whether the plan has a part of this id in one of its own lists (its zones, connectors, forms): what {@link #partName} names. */
+	private static boolean planPart(com.google.gson.JsonObject plan, String id) {
+		for (var e : plan.entrySet()) {
+			if (!(e.getValue() instanceof com.google.gson.JsonArray a)) continue;
+			for (var p : a) if (p instanceof com.google.gson.JsonObject o && o.get("id") instanceof com.google.gson.JsonPrimitive i && id.equals(i.getAsString())) return true;
 		}
-		return "district " + id.replace('_', ' ').strip();
+		return false;
+	}
+
+	private static com.google.gson.@org.jspecify.annotations.Nullable JsonObject district(com.google.gson.JsonObject plan, @org.jspecify.annotations.Nullable String id) {
+		if (id == null) return null;
+		for (var d : PlanDistricts.districts(plan)) if (d.get("id") instanceof com.google.gson.JsonPrimitive i && id.equals(i.getAsString())) return d;
+		return null;
+	}
+
+	/**
+	 * A street's district ("the Old riverside quarter", "district b"), else its zone's label when the plan has several zones ("the Hill quarter"); null when
+	 * neither is known (the town's own street, or a prefix the plan doesn't name: Architect's {@code z<n>_} is by position, never a zone's id).
+	 */
+	private static @org.jspecify.annotations.Nullable String placeWords(com.google.gson.JsonObject plan, @org.jspecify.annotations.Nullable String district,
+		@org.jspecify.annotations.Nullable String zone) {
+		var d = district(plan, district);
+		if (d != null) return theOf(districtWords(d, district));
+		if (zone == null || !(plan.get("zones") instanceof com.google.gson.JsonArray zones) || zones.size() < 2) return null;
+		for (var z : zones) {
+			if (z instanceof com.google.gson.JsonObject zo && zo.get("id") instanceof com.google.gson.JsonPrimitive i && zone.equals(i.getAsString()))
+				return zo.get("label") instanceof com.google.gson.JsonPrimitive l && !l.getAsString().isBlank() ? theOf(l.getAsString()) : null;
+		}
+		return null;
 	}
 
 	private static String districtWords(com.google.gson.JsonObject d, String id) {
