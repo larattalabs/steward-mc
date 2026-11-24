@@ -5702,7 +5702,10 @@ async function suppliedGrowthFlow(mode = null) {
       await away();
       const said = fed ? await cmd(`/steward undo ${id}`) : '';
       const done = fed ? await until(() => completion(tag), 300) : null;
-      const words = logSince(from).match(/(Refunded: [^\n]*|Nothing had been drawn[^\n]*)/);
+      // (T4R-PIN fix round, batch-100's one FAIL) the completion is read from the settlements file, saved before the game log flushes the line said
+      // in the same tick (the command's own answer to its source, logged as "<id>: Refunded: ..."): waited for (bounded, 30 s; none is a FAIL),
+      // never read at once
+      const words = done ? await waitLog(from, /(Refunded: [^\n]*|Nothing had been drawn[^\n]*)/, 30_000) : null;
       if (!fed) fail(lbl, 'nothing drawn from the stockpile once fed in part');
       else if (!Object.keys(spW0?.need ?? {}).length) fail(lbl, 'nothing was owed when it was undone (not waiting)');
       else if (!done) fail(lbl, `no completion in 5 min: ${String(said).slice(0, 120)}; ${chatTail(from)}`);
